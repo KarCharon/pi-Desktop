@@ -13,6 +13,7 @@
 #include <QJsonObject>
 #include <QLoggingCategory>
 #include <QRandomGenerator>
+#include <QSet>
 #include <QUrl>
 
 namespace {
@@ -172,6 +173,14 @@ QString AgentSessionController::modelName() const
 }
 
 /**
+ * 返回 Pi 当前思考等级，未获取时返回空字符串。
+ */
+QString AgentSessionController::thinkingLevel() const
+{
+    return m_thinkingLevel;
+}
+
+/**
  * 校验输入和连接，发送成功后才把用户消息加入 UI。
  */
 bool AgentSessionController::prompt(const QString &text, bool followUp)
@@ -186,6 +195,11 @@ bool AgentSessionController::prompt(const QString &text, bool followUp)
         qCWarning(agentControllerLog) << "[AgentSession]" << message;
         m_chatModel->appendSystemMessage(message, true);
         return false;
+    }
+    // 桌面端内置斜杠命令不发送给 Pi，而是映射到对应 RPC 调用。
+    if (handleBuiltinCommand(trimmed)) {
+        qCInfo(agentControllerLog) << "[AgentBuiltin] handled; text=" << trimmed;
+        return true;
     }
     // 由 Pi 负责队列调度及命令展开，UI 不提前把排队文本伪装成已执行消息。
     const bool wasBusy = m_busy;
@@ -290,14 +304,21 @@ void AgentSessionController::prepareWorkspaceSwitch()
     m_queueText.clear();
     m_sessionStats.clear();
     m_statsRequestId.clear();
-    m_commands.clear();
+    // 切目录时 Pi 命令会变化，但内置命令必须保留。
+    m_commands = builtinCommands();
     m_attachments.clear();
+    m_thinkingLevel.clear();
+    m_currentProvider.clear();
+    m_currentModelId.clear();
+    m_pendingThinkingLevel.clear();
+    m_pendingSessionName.clear();
     m_chatModel->clear();
     emit sessionChanged();
     emit queueChanged();
     emit sessionStatsChanged();
     emit commandsChanged();
     emit attachmentsChanged();
+    emit thinkingLevelChanged();
     emit connectedChanged();
     setStatusText(tr("正在切换工作目录…"));
     qCInfo(agentControllerLog) << "[ProjectWorkspace] 已关闭旧会话提交入口";
@@ -462,27 +483,32 @@ void AgentSessionController::handleResponse(const QJsonObject &payload)
         return;
     }
     if (command == QStringLiteral("get_commands")) {
-        m_commands.clear();
+        // 内置命令在前，Pi 命令去重后追加，保证两套命令都能补全。
+        m_commands = builtinCommands();
+        QSet<QString> names;
+        for (const QVariant &entry : m_commands)
+            names.insert(entry.toMap().value(QStringLiteral("name")).toString());
         if (payload.value(QStringLiteral("success")).toBool()) {
             const QJsonArray list = payload.value(QStringLiteral("data")).toObject()
                                         .value(QStringLiteral("commands")).toArray();
             for (const QJsonValue &value : list) {
                 const QJsonObject entry = value.toObject();
                 const QString name = entry.value(QStringLiteral("name")).toString();
-                if (name.isEmpty())
+                if (name.isEmpty() || names.contains(name))
                     continue;
+                names.insert(name);
                 m_commands.append(QVariantMap{
                     {QStringLiteral("name"), name},
                     {QStringLiteral("invocation"), QStringLiteral("/") + name},
                     {QStringLiteral("description"), entry.value(QStringLiteral("description")).toString()},
                     {QStringLiteral("source"), entry.value(QStringLiteral("source")).toString()}});
             }
-            emit commandsChanged();
-            qCInfo(agentControllerLog) << "[AgentCommands] loaded; count=" << m_commands.size();
         } else {
             qCWarning(agentControllerLog) << "[AgentCommands] unavailable:"
                                          << payload.value(QStringLiteral("error")).toString();
         }
+        emit commandsChanged();
+        qCInfo(agentControllerLog) << "[AgentCommands] loaded; count=" << m_commands.size();
         return;
     }
     const QString requestId = payload.value(QStringLiteral("id")).toString();
@@ -526,9 +552,66 @@ void AgentSessionController::handleResponse(const QJsonObject &payload)
         const QJsonObject model = data.value(QStringLiteral("model")).toObject();
         const QString provider = model.value(QStringLiteral("provider")).toString();
         const QString modelId = model.value(QStringLiteral("id")).toString();
+        m_currentProvider = provider;
+        m_currentModelId = modelId;
         m_modelName = provider.isEmpty() ? modelId : provider + u'/' + modelId;
+        const QString level = data.value(QStringLiteral("thinkingLevel")).toString();
+        if (!level.isEmpty() && level != m_thinkingLevel) {
+            m_thinkingLevel = level;
+            emit thinkingLevelChanged();
+        }
         emit sessionChanged();
         emit modelNameChanged();
+    } else if (command == QStringLiteral("get_available_models")) {
+        QVariantList models;
+        for (const QJsonValue &value : data.value(QStringLiteral("models")).toArray()) {
+            const QJsonObject model = value.toObject();
+            const QString provider = model.value(QStringLiteral("provider")).toString();
+            const QString id = model.value(QStringLiteral("id")).toString();
+            const QString name = model.value(QStringLiteral("name")).toString();
+            models.append(QVariantMap{
+                {QStringLiteral("provider"), provider},
+                {QStringLiteral("id"), id},
+                {QStringLiteral("value"), provider + u'/' + id},
+                {QStringLiteral("label"), provider + u'/' + id
+                     + (name.isEmpty() ? QString() : QStringLiteral("  ·  ") + name)},
+                {QStringLiteral("current"), provider == m_currentProvider && id == m_currentModelId}});
+        }
+        emit modelSelectionRequested(models, m_currentProvider.isEmpty()
+                                                  ? QString()
+                                                  : m_currentProvider + u'/' + m_currentModelId);
+        qCInfo(agentControllerLog) << "[AgentBuiltin] available models; count=" << models.size();
+    } else if (command == QStringLiteral("set_model")) {
+        m_currentProvider = data.value(QStringLiteral("provider")).toString();
+        m_currentModelId = data.value(QStringLiteral("id")).toString();
+        m_modelName = m_currentProvider.isEmpty() ? m_currentModelId
+                                                  : m_currentProvider + u'/' + m_currentModelId;
+        emit modelNameChanged();
+        m_chatModel->appendSystemMessage(tr("已切换模型：%1").arg(m_modelName));
+        qCInfo(agentControllerLog) << "[AgentBuiltin] model switched;" << m_modelName;
+    } else if (command == QStringLiteral("get_available_thinking_levels")) {
+        QVariantList levels;
+        for (const QJsonValue &value : data.value(QStringLiteral("levels")).toArray())
+            levels.append(value.toString());
+        emit thinkingSelectionRequested(levels, m_thinkingLevel);
+        qCInfo(agentControllerLog) << "[AgentBuiltin] available thinking levels; count=" << levels.size();
+    } else if (command == QStringLiteral("set_thinking_level")) {
+        m_thinkingLevel = m_pendingThinkingLevel;
+        emit thinkingLevelChanged();
+        m_chatModel->appendSystemMessage(tr("思考等级已设为：%1").arg(m_thinkingLevel));
+        qCInfo(agentControllerLog) << "[AgentBuiltin] thinking level;" << m_thinkingLevel;
+    } else if (command == QStringLiteral("compact")) {
+        m_chatModel->appendSystemMessage(tr("上下文压缩完成。"));
+        refreshSessionStats();
+        qCInfo(agentControllerLog) << "[AgentBuiltin] compaction finished";
+    } else if (command == QStringLiteral("export_html")) {
+        const QString path = data.value(QStringLiteral("path")).toString();
+        m_chatModel->appendSystemMessage(tr("已导出会话 HTML：%1").arg(path));
+        qCInfo(agentControllerLog) << "[AgentBuiltin] exported;" << path;
+    } else if (command == QStringLiteral("set_session_name")) {
+        m_sessionName = m_pendingSessionName;
+        emit sessionChanged();
+        qCInfo(agentControllerLog) << "[AgentBuiltin] session renamed;" << m_sessionName;
     } else if (command == QStringLiteral("get_messages")) {
         m_chatModel->replaceFromMessages(data.value(QStringLiteral("messages")).toArray());
         qCInfo(agentControllerLog) << "[AgentSession] 历史消息加载成功，数量:"
@@ -678,9 +761,12 @@ void AgentSessionController::refreshSessionStats()
     m_statsRequestId = m_rpcClient->requestSessionStats();
 }
 
-/** 请求一次命令列表；未连接时跳过，由初始化流程稍后补发。 */
+/** 请求一次命令列表；先填充内置命令，保证 Pi 未连接时补全仍可用。 */
 void AgentSessionController::refreshCommands()
 {
+    // 内置命令必须始终可用，即使 Pi 还没返回或没有扩展命令。
+    m_commands = builtinCommands();
+    emit commandsChanged();
     if (!connected())
         return;
     m_rpcClient->requestCommands();
@@ -758,6 +844,109 @@ void AgentSessionController::clearAttachments()
         return;
     m_attachments.clear();
     emit attachmentsChanged();
+}
+
+/**
+ * 切换到用户选定的模型，结果由 set_model 响应回写到状态栏与聊天。
+ */
+void AgentSessionController::selectModel(const QString &provider, const QString &modelId)
+{
+    if (!connected() || m_busy || provider.trimmed().isEmpty() || modelId.trimmed().isEmpty())
+        return;
+    m_rpcClient->setModel(provider, modelId);
+    setStatusText(tr("正在切换模型…"));
+    qCInfo(agentControllerLog) << "[AgentBuiltin] select model; provider=" << provider
+                              << "id=" << modelId;
+}
+
+/**
+ * 记录待确认的思考等级并发送 set_thinking_level；响应不带数据，回写时依赖该暂存值。
+ */
+void AgentSessionController::selectThinkingLevel(const QString &level)
+{
+    if (!connected() || m_busy || level.trimmed().isEmpty())
+        return;
+    m_pendingThinkingLevel = level.trimmed();
+    m_rpcClient->setThinkingLevel(m_pendingThinkingLevel);
+    setStatusText(tr("正在设置思考等级…"));
+    qCInfo(agentControllerLog) << "[AgentBuiltin] select thinking level; level=" << m_pendingThinkingLevel;
+}
+
+/**
+ * 返回桌面端内置命令，与 Pi 上报的命令合并用于编辑器补全。
+ */
+QVariantList AgentSessionController::builtinCommands()
+{
+    const auto entry = [](const QString &name, const QString &description) {
+        return QVariantMap{
+            {QStringLiteral("name"), name},
+            {QStringLiteral("invocation"), QStringLiteral("/") + name},
+            {QStringLiteral("description"), description},
+            {QStringLiteral("source"), QStringLiteral("desktop")}};
+    };
+    return {
+        entry(QStringLiteral("new"), tr("新建会话")),
+        entry(QStringLiteral("compact"), tr("压缩上下文")),
+        entry(QStringLiteral("model"), tr("切换模型")),
+        entry(QStringLiteral("thinking"), tr("设置思考等级")),
+        entry(QStringLiteral("name"), tr("重命名当前会话")),
+        entry(QStringLiteral("export"), tr("导出会话为 HTML")),
+        entry(QStringLiteral("abort"), tr("中止当前任务")),
+    };
+}
+
+/**
+ * 解析并执行内置命令；不匹配任何内置命令时返回 false，交回 Pi 处理。
+ */
+bool AgentSessionController::handleBuiltinCommand(const QString &text)
+{
+    if (!text.startsWith(QLatin1Char('/')))
+        return false;
+    const int separator = text.indexOf(QLatin1Char(' '));
+    const QString token = (separator < 0 ? text.mid(1) : text.mid(1, separator - 1)).trimmed().toLower();
+    const QString argument = separator < 0 ? QString() : text.mid(separator + 1).trimmed();
+    static const QStringList names{
+        QStringLiteral("new"), QStringLiteral("compact"), QStringLiteral("abort"),
+        QStringLiteral("name"), QStringLiteral("export"), QStringLiteral("model"),
+        QStringLiteral("thinking")};
+    if (!names.contains(token))
+        return false;
+
+    const auto requireIdle = [this, token]() {
+        if (!m_busy)
+            return true;
+        m_chatModel->appendSystemMessage(tr("当前任务进行中，无法执行 /%1。").arg(token), true);
+        return false;
+    };
+
+    if (token == QStringLiteral("abort")) {
+        abort();
+    } else if (token == QStringLiteral("new")) {
+        if (requireIdle())
+            newSession();
+    } else if (token == QStringLiteral("compact")) {
+        if (requireIdle()) {
+            m_rpcClient->compact();
+            setStatusText(tr("正在压缩上下文…"));
+        }
+    } else if (token == QStringLiteral("export")) {
+        if (requireIdle())
+            m_rpcClient->exportHtml();
+    } else if (token == QStringLiteral("model")) {
+        if (requireIdle())
+            m_rpcClient->requestAvailableModels();
+    } else if (token == QStringLiteral("thinking")) {
+        if (requireIdle())
+            m_rpcClient->requestThinkingLevels();
+    } else if (token == QStringLiteral("name")) {
+        if (argument.isEmpty()) {
+            m_chatModel->appendSystemMessage(tr("用法：/name <会话名称>"), true);
+        } else {
+            m_pendingSessionName = argument;
+            m_rpcClient->setSessionName(argument);
+        }
+    }
+    return true;
 }
 
 /**

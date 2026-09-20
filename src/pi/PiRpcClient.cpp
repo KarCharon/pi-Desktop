@@ -126,6 +126,66 @@ QString PiRpcClient::requestCommands()
 }
 
 /**
+ * 构造 compact 命令，手动压缩上下文。
+ */
+QString PiRpcClient::compact()
+{
+    return sendCommand({{QStringLiteral("type"), QStringLiteral("compact")}});
+}
+
+/**
+ * 构造 export_html 命令，由 Pi 选择默认导出路径。
+ */
+QString PiRpcClient::exportHtml()
+{
+    return sendCommand({{QStringLiteral("type"), QStringLiteral("export_html")}});
+}
+
+/**
+ * 构造 set_session_name 命令。
+ */
+QString PiRpcClient::setSessionName(const QString &name)
+{
+    return sendCommand({{QStringLiteral("type"), QStringLiteral("set_session_name")},
+                        {QStringLiteral("name"), name}});
+}
+
+/**
+ * 构造 get_available_models 命令。
+ */
+QString PiRpcClient::requestAvailableModels()
+{
+    return sendCommand({{QStringLiteral("type"), QStringLiteral("get_available_models")}});
+}
+
+/**
+ * 构造 set_model 命令。
+ */
+QString PiRpcClient::setModel(const QString &provider, const QString &modelId)
+{
+    return sendCommand({{QStringLiteral("type"), QStringLiteral("set_model")},
+                        {QStringLiteral("provider"), provider},
+                        {QStringLiteral("modelId"), modelId}});
+}
+
+/**
+ * 构造 get_available_thinking_levels 命令。
+ */
+QString PiRpcClient::requestThinkingLevels()
+{
+    return sendCommand({{QStringLiteral("type"), QStringLiteral("get_available_thinking_levels")}});
+}
+
+/**
+ * 构造 set_thinking_level 命令。
+ */
+QString PiRpcClient::setThinkingLevel(const QString &level)
+{
+    return sendCommand({{QStringLiteral("type"), QStringLiteral("set_thinking_level")},
+                        {QStringLiteral("level"), level}});
+}
+
+/**
  * 合并扩展 UI 对话 ID 与调用方提供的结果字段。
  */
 QString PiRpcClient::respondToExtension(const QString &id, const QJsonObject &result)

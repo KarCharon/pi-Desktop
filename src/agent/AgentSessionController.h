@@ -28,6 +28,7 @@ class AgentSessionController final : public QObject
     Q_PROPERTY(QString sessionName READ sessionName NOTIFY sessionChanged)
     Q_PROPERTY(QString sessionFile READ sessionFile NOTIFY sessionChanged)
     Q_PROPERTY(QString modelName READ modelName NOTIFY modelNameChanged)
+    Q_PROPERTY(QString thinkingLevel READ thinkingLevel NOTIFY thinkingLevelChanged)
     Q_PROPERTY(QString workingText READ workingText NOTIFY workingTextChanged)
     Q_PROPERTY(QVariantMap sessionStats READ sessionStats NOTIFY sessionStatsChanged)
     Q_PROPERTY(QVariantList commands READ commands NOTIFY commandsChanged)
@@ -52,6 +53,8 @@ public:
     [[nodiscard]] QString sessionFile() const;
     /** 返回当前模型名称。 */
     [[nodiscard]] QString modelName() const;
+    /** 返回当前思考等级，未获取时返回空字符串。 */
+    [[nodiscard]] QString thinkingLevel() const;
     /** 返回当前随机英文工作提示，忙碌期间每十秒切换。 */
     [[nodiscard]] QString workingText() const;
     /** 返回 Pi 提供的会话累计统计与当前上下文估计。 */
@@ -109,6 +112,16 @@ public:
      */
     Q_INVOKABLE void clearAttachments();
 
+    /**
+     * 切换到指定模型，供 /model 选择弹窗回调用。
+     */
+    Q_INVOKABLE void selectModel(const QString &provider, const QString &modelId);
+
+    /**
+     * 设置思考等级，供 /thinking 选择弹窗回调用。
+     */
+    Q_INVOKABLE void selectThinkingLevel(const QString &level);
+
 signals:
     /** 待发送队列变化。 */
     void queueChanged();
@@ -124,6 +137,8 @@ signals:
     void sessionChanged();
     /** 当前模型名称变化。 */
     void modelNameChanged();
+    /** 当前思考等级变化。 */
+    void thinkingLevelChanged();
     /** 英文工作提示变化。 */
     void workingTextChanged();
     /** 上下文及累计统计变化。 */
@@ -136,6 +151,10 @@ signals:
     void newSessionCreated();
     /** Session 内容或列表可能已变化。 */
     void sessionsChanged();
+    /** /model 请求展示模型选择列表。 */
+    void modelSelectionRequested(const QVariantList &models, const QString &current);
+    /** /thinking 请求展示思考等级选择列表。 */
+    void thinkingSelectionRequested(const QVariantList &levels, const QString &current);
     /** 扩展请求显示交互对话。 */
     void extensionDialogRequested(const QVariantMap &request);
     /** 扩展请求修改输入编辑器文本。 */
@@ -179,6 +198,10 @@ private:
     void refreshSessionStats();
     /** 请求一次可用命令列表。 */
     void refreshCommands();
+    /** 拦截并执行桌面端内置斜杠命令，返回是否已处理。 */
+    bool handleBuiltinCommand(const QString &text);
+    /** 返回桌面端内置命令列表，用于与 Pi 命令合并补全。 */
+    [[nodiscard]] static QVariantList builtinCommands();
     /** 将附件合并进 Prompt 文本与 images 字段。 */
     void buildPromptPayload(const QString &text, QString &message, QJsonArray &images) const;
     /** 批量展示有界 stderr，不将普通诊断一律标记为致命错误。 */
@@ -199,6 +222,11 @@ private:
     QString m_sessionName;
     QString m_sessionFile;
     QString m_modelName;
+    QString m_thinkingLevel;
+    QString m_currentProvider;
+    QString m_currentModelId;
+    QString m_pendingThinkingLevel;
+    QString m_pendingSessionName;
     QString m_workingText = QStringLiteral("Thinking");
     QVariantMap m_sessionStats;
     QVariantList m_commands;

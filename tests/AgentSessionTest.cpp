@@ -24,6 +24,8 @@
 static int runFakePi()
 {
     std::string line;
+    // 记录 set_session_name 设置的名字，让 get_state 返回最新值。
+    QString sessionName;
     while (std::getline(std::cin, line)) {
         const QJsonObject command = QJsonDocument::fromJson(QByteArray::fromStdString(line)).object();
         const QString type = command.value("type").toString();
@@ -42,6 +44,17 @@ static int runFakePi()
         } else if (type == "get_session_stats") {
             data = {{"tokens", QJsonObject{{"total", 105000}}}, {"cost", 0.45},
                     {"contextUsage", QJsonObject{{"tokens", 60000}, {"contextWindow", 200000}, {"percent", 30}}}};
+        } else if (type == "set_session_name") {
+            sessionName = command.value("name").toString();
+        } else if (type == "set_model") {
+            data = {{"provider", command.value("provider")},
+                    {"id", command.value("modelId")}, {"name", "Stub Model"}};
+        } else if (type == "get_available_models") {
+            data = {{"models", QJsonArray{
+                QJsonObject{{"provider", "deepseek"}, {"id", "deepseek-flash"}, {"name", "DeepSeek Flash"}},
+                QJsonObject{{"provider", "deepseek"}, {"id", "deepseek-reasoner"}, {"name", "DeepSeek Reasoner"}}}}};
+        } else if (type == "get_available_thinking_levels") {
+            data = {{"levels", QJsonArray{"off", "low", "medium", "high"}}};
         } else if (type == "get_commands") {
             data = {{"commands", QJsonArray{
                 QJsonObject{{"name", "review"}, {"description", "Review staged changes"}, {"source", "prompt"}},
@@ -52,7 +65,10 @@ static int runFakePi()
             const QStringList arguments = QCoreApplication::arguments();
             const int sessionIndex = arguments.indexOf("--session");
             const QString session = sessionIndex < 0 ? QString() : arguments.value(sessionIndex + 1);
-            data = {{"sessionFile", session}, {"sessionName", QDir::currentPath()}};
+            data = {{"sessionFile", session},
+                    {"sessionName", sessionName.isEmpty() ? QDir::currentPath() : sessionName},
+                    {"thinkingLevel", "medium"},
+                    {"model", QJsonObject{{"provider", "deepseek"}, {"id", "deepseek-flash"}}}};
         }
         const QJsonObject response{{"type", "response"}, {"id", command.value("id")},
                                    {"command", type}, {"success", true}, {"data", data}};
@@ -408,10 +424,20 @@ private slots:
         process.setWorkingDirectory(profile.path());
         QVERIFY(process.start());
         QTRY_VERIFY(agent.connected());
-        // 初始化完成后应自动拉取命令列表。
-        QTRY_COMPARE(agent.commands().size(), 2);
-        QCOMPARE(agent.commands().at(0).toMap().value("invocation").toString(), QString("/review"));
-        QCOMPARE(agent.commands().at(1).toMap().value("source").toString(), QString("skill"));
+        // 初始化完成后应自动拉取命令列表：7 个内置命令 + 2 个 Pi 扩展命令。
+        QTRY_COMPARE(agent.commands().size(), 9);
+        const auto hasCommand = [&agent](const QString &invocation, const QString &source = {}) {
+            for (const QVariant &entry : agent.commands()) {
+                const QVariantMap command = entry.toMap();
+                if (command.value(QStringLiteral("invocation")).toString() == invocation
+                    && (source.isEmpty() || command.value(QStringLiteral("source")).toString() == source))
+                    return true;
+            }
+            return false;
+        };
+        QVERIFY(hasCommand(QStringLiteral("/new"), QStringLiteral("desktop")));
+        QVERIFY(hasCommand(QStringLiteral("/review"), QStringLiteral("prompt")));
+        QVERIFY(hasCommand(QStringLiteral("/skill:brave-search"), QStringLiteral("skill")));
 
         const QVariantList files{QUrl::fromLocalFile(textFile.fileName()),
                                  QUrl::fromLocalFile(imageFile.fileName())};
@@ -431,6 +457,52 @@ private slots:
         QCOMPARE(agent.attachments().size(), 1);
         agent.removeAttachment(0);
         QCOMPARE(agent.attachments().size(), 0);
+        process.stop();
+        QTRY_VERIFY(!process.active());
+    }
+
+    /** 内置斜杠命令在本地拦截并映射到 RPC，未命中的命令仍作为 Prompt 发给 Pi。 */
+    void builtinCommandsMapToRpc()
+    {
+        QTemporaryDir profile;
+        QVERIFY(profile.isValid());
+        PiProcess process;
+        PiRpcClient rpc(&process);
+        ChatModel model;
+        AgentSessionController agent(&process, &rpc, &model);
+        process.setExecutable(QCoreApplication::applicationFilePath());
+        process.setConfigDirectory(profile.path());
+        process.setWorkingDirectory(profile.path());
+        QVERIFY(process.start());
+        QTRY_VERIFY(agent.connected());
+
+        // /name 直接改会话名，不进入 Agent 忙碌状态。
+        QVERIFY(agent.prompt(QStringLiteral("/name my-feature")));
+        QTRY_COMPARE(agent.sessionName(), QString("my-feature"));
+        QVERIFY(!agent.busy());
+
+        // /model 请求模型列表并通过信号回传。
+        QSignalSpy modelsRequested(&agent, &AgentSessionController::modelSelectionRequested);
+        QVERIFY(agent.prompt(QStringLiteral("/model")));
+        QTRY_COMPARE(modelsRequested.count(), 1);
+        QCOMPARE(modelsRequested.first().at(0).toList().size(), 2);
+        QCOMPARE(modelsRequested.first().at(1).toString(), QString("deepseek/deepseek-flash"));
+
+        // /thinking 请求思考等级。
+        QSignalSpy levelsRequested(&agent, &AgentSessionController::thinkingSelectionRequested);
+        QVERIFY(agent.prompt(QStringLiteral("/thinking")));
+        QTRY_COMPARE(levelsRequested.count(), 1);
+        QCOMPARE(levelsRequested.first().at(0).toList().size(), 4);
+        QCOMPARE(levelsRequested.first().at(1).toString(), QString("medium"));
+
+        // 选择模型后 Pi 返回 set_model，状态名称更新。
+        agent.selectModel(QStringLiteral("deepseek"), QStringLiteral("deepseek-reasoner"));
+        QTRY_COMPARE(agent.modelName(), QString("deepseek/deepseek-reasoner"));
+
+        // 非内置命令仍作为 Prompt 发送给 Pi。
+        QVERIFY(agent.prompt(QStringLiteral("/review check this")));
+        QTRY_VERIFY(agent.queueText().contains(QStringLiteral("/review check this")));
+
         process.stop();
         QTRY_VERIFY(!process.active());
     }

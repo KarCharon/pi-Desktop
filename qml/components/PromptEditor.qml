@@ -279,7 +279,7 @@ Item {
                         elide: Text.ElideRight
                     }
                     Label {
-                        text: modelData.source
+                        text: modelData.source === "desktop" ? "内置" : modelData.source
                         color: "#b3ada4"
                         font.pixelSize: 9
                     }

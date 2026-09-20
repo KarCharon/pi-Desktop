@@ -67,6 +67,41 @@ public:
     QString requestCommands();
 
     /**
+     * 手动压缩当前会话上下文。
+     */
+    QString compact();
+
+    /**
+     * 将当前会话导出为 HTML。
+     */
+    QString exportHtml();
+
+    /**
+     * 设置当前会话的显示名称。
+     */
+    QString setSessionName(const QString &name);
+
+    /**
+     * 请求全部已配置的模型。
+     */
+    QString requestAvailableModels();
+
+    /**
+     * 切换到指定 provider 与 modelId 的模型。
+     */
+    QString setModel(const QString &provider, const QString &modelId);
+
+    /**
+     * 请求当前模型支持的思考等级。
+     */
+    QString requestThinkingLevels();
+
+    /**
+     * 设置当前模型的思考等级。
+     */
+    QString setThinkingLevel(const QString &level);
+
+    /**
      * 回复扩展发起的 UI 对话请求。
      */
     QString respondToExtension(const QString &id, const QJsonObject &result);

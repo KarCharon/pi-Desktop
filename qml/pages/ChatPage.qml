@@ -119,6 +119,17 @@ Item {
             page.rightSidebarVisible = false
             console.info("[WorkspaceChrome] new session created; sidebars=collapsed")
         }
+        /** /model：把 Pi 返回的模型列表交给选择弹窗。 */
+        function onModelSelectionRequested(models, current) {
+            choiceDialog.present("选择模型", "model", models, current)
+        }
+        /** /thinking：把 Pi 返回的思考等级转成统一选项后交给选择弹窗。 */
+        function onThinkingSelectionRequested(levels, current) {
+            const options = []
+            for (let i = 0; i < levels.length; ++i)
+                options.push({ label: levels[i], value: levels[i] })
+            choiceDialog.present("选择思考等级", "thinking", options, current)
+        }
     }
 
     // 只在页面创建时记录样式配置，避免滚动和拖动回调持续刷日志。
@@ -326,5 +337,101 @@ Item {
         title: "添加文件或图片到 Prompt"
         fileMode: FileDialog.OpenFiles
         onAccepted: page.agent.attachFiles(selectedFiles)
+    }
+
+    /** 通用选择弹窗，供 /model 和 /thinking 复用。 */
+    Popup {
+        id: choiceDialog
+        anchors.centerIn: parent
+        width: Math.min(page.width - 80, 520)
+        height: Math.min(page.height - 120, 320)
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle { color: "#fbfaf7"; border.color: "#d8d1c7"; radius: 12 }
+
+        /** 弹窗标题，区分模型与思考等级。 */
+        property string dialogTitle: ""
+        /** 选择类型：model 调用 selectModel，其余调用 selectThinkingLevel。 */
+        property string choiceKind: ""
+        /** 选项列表，每项含 label、value，模型项额外含 provider、id。 */
+        property var options: []
+        /** 当前生效值，用于高亮。 */
+        property string currentValue: ""
+
+        /** 填充数据并打开弹窗。 */
+        function present(title, kind, optionList, current) {
+            dialogTitle = title
+            choiceKind = kind
+            options = optionList || []
+            currentValue = current || ""
+            choiceList.positionViewAtBeginning()
+            open()
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 16
+            spacing: 10
+            Label {
+                Layout.fillWidth: true
+                text: choiceDialog.dialogTitle
+                color: "#302d29"
+                font.pixelSize: 16
+                font.bold: true
+            }
+            ListView {
+                id: choiceList
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 4
+                model: choiceDialog.options
+                boundsBehavior: Flickable.StopAtBounds
+                delegate: Rectangle {
+                    width: choiceList.width
+                    height: 38
+                    radius: 8
+                    color: choiceMouse.containsMouse ? "#f0e0d3"
+                         : modelData.value === choiceDialog.currentValue ? "#f6ece3" : "transparent"
+                    border.color: modelData.value === choiceDialog.currentValue ? "#dfbba2" : "transparent"
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 10
+                        Label {
+                            Layout.fillWidth: true
+                            text: modelData.label
+                            color: "#403d37"
+                            font.pixelSize: 13
+                            elide: Text.ElideRight
+                        }
+                        Label {
+                            visible: modelData.value === choiceDialog.currentValue
+                            text: "当前"
+                            color: "#a96346"
+                            font.pixelSize: 11
+                        }
+                    }
+                    MouseArea {
+                        id: choiceMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (choiceDialog.choiceKind === "model")
+                                page.agent.selectModel(modelData.provider, modelData.id)
+                            else
+                                page.agent.selectThinkingLevel(modelData.value)
+                            choiceDialog.close()
+                        }
+                    }
+                }
+            }
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                Button { text: "取消"; onClicked: choiceDialog.close() }
+            }
+        }
     }
 }
