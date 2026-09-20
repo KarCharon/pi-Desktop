@@ -62,6 +62,11 @@ public:
     QString requestSessionStats();
 
     /**
+     * 请求可用命令、提示模板与技能列表。
+     */
+    QString requestCommands();
+
+    /**
      * 回复扩展发起的 UI 对话请求。
      */
     QString respondToExtension(const QString &id, const QJsonObject &result);

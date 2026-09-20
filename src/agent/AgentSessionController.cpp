@@ -5,11 +5,50 @@
 #include "pi/PiProcess.h"
 #include "pi/PiRpcClient.h"
 
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLoggingCategory>
 #include <QRandomGenerator>
+#include <QUrl>
+
+namespace {
+/** 单条附件上限，避免一次 Prompt 撑爆 64 MiB 的 JSONL 分帧上限。 */
+constexpr qint64 kMaximumAttachmentBytes = 10 * 1024 * 1024;
+
+/**
+ * 按内容嗅探 Pi 支持的图片类型，非图片返回空。
+ */
+QString detectImageMimeType(const QByteArray &data)
+{
+    const auto startsWith = [&data](const char *magic, int length, int offset = 0) {
+        return data.size() >= offset + length && data.mid(offset, length) == QByteArray(magic, length);
+    };
+    if (startsWith("\xff\xd8\xff", 3))
+        return data.size() > 3 && static_cast<unsigned char>(data.at(3)) == 0xf7
+                   ? QString() : QStringLiteral("image/jpeg");
+    if (startsWith("\x89PNG\r\n\x1a\n", 8))
+        return QStringLiteral("image/png");
+    if (startsWith("GIF", 3))
+        return QStringLiteral("image/gif");
+    if (startsWith("RIFF", 4) && startsWith("WEBP", 4, 8))
+        return QStringLiteral("image/webp");
+    if (startsWith("BM", 2) && data.size() >= 26)
+        return QStringLiteral("image/bmp");
+    return {};
+}
+
+/** 去除 UTF-8 BOM，与 Pi 读取文本附件的行为保持一致。 */
+QString decodeTextFile(QByteArray data)
+{
+    if (data.startsWith("\xef\xbb\xbf"))
+        data.remove(0, 3);
+    return QString::fromUtf8(data);
+}
+} // namespace
 
 Q_LOGGING_CATEGORY(agentControllerLog, "pidesktop.agent")
 
@@ -151,13 +190,21 @@ bool AgentSessionController::prompt(const QString &text, bool followUp)
     // 由 Pi 负责队列调度及命令展开，UI 不提前把排队文本伪装成已执行消息。
     const bool wasBusy = m_busy;
     const QString behavior = followUp ? QStringLiteral("followUp") : QStringLiteral("steer");
-    const QString id = m_rpcClient->sendCommand({
+    QString message;
+    QJsonArray images;
+    buildPromptPayload(trimmed, message, images);
+    QJsonObject command{
         {QStringLiteral("type"), QStringLiteral("prompt")},
-        {QStringLiteral("message"), trimmed},
-        {QStringLiteral("streamingBehavior"), behavior}});
+        {QStringLiteral("message"), message},
+        {QStringLiteral("streamingBehavior"), behavior}};
+    if (!images.isEmpty())
+        command.insert(QStringLiteral("images"), images);
+    const QString id = m_rpcClient->sendCommand(command);
     if (id.isEmpty())
         return false;
     m_promptRequests.insert(id, {trimmed, wasBusy});
+    if (!m_attachments.isEmpty())
+        clearAttachments();
     qCInfo(agentControllerLog) << "[PromptQueue] 已提交；busy=" << wasBusy << "behavior=" << behavior;
     if (!wasBusy) {
         setBusy(true);
@@ -243,10 +290,14 @@ void AgentSessionController::prepareWorkspaceSwitch()
     m_queueText.clear();
     m_sessionStats.clear();
     m_statsRequestId.clear();
+    m_commands.clear();
+    m_attachments.clear();
     m_chatModel->clear();
     emit sessionChanged();
     emit queueChanged();
     emit sessionStatsChanged();
+    emit commandsChanged();
+    emit attachmentsChanged();
     emit connectedChanged();
     setStatusText(tr("正在切换工作目录…"));
     qCInfo(agentControllerLog) << "[ProjectWorkspace] 已关闭旧会话提交入口";
@@ -410,6 +461,30 @@ void AgentSessionController::handleResponse(const QJsonObject &payload)
                                   << m_sessionStats.contains(QStringLiteral("contextUsage"));
         return;
     }
+    if (command == QStringLiteral("get_commands")) {
+        m_commands.clear();
+        if (payload.value(QStringLiteral("success")).toBool()) {
+            const QJsonArray list = payload.value(QStringLiteral("data")).toObject()
+                                        .value(QStringLiteral("commands")).toArray();
+            for (const QJsonValue &value : list) {
+                const QJsonObject entry = value.toObject();
+                const QString name = entry.value(QStringLiteral("name")).toString();
+                if (name.isEmpty())
+                    continue;
+                m_commands.append(QVariantMap{
+                    {QStringLiteral("name"), name},
+                    {QStringLiteral("invocation"), QStringLiteral("/") + name},
+                    {QStringLiteral("description"), entry.value(QStringLiteral("description")).toString()},
+                    {QStringLiteral("source"), entry.value(QStringLiteral("source")).toString()}});
+            }
+            emit commandsChanged();
+            qCInfo(agentControllerLog) << "[AgentCommands] loaded; count=" << m_commands.size();
+        } else {
+            qCWarning(agentControllerLog) << "[AgentCommands] unavailable:"
+                                         << payload.value(QStringLiteral("error")).toString();
+        }
+        return;
+    }
     const QString requestId = payload.value(QStringLiteral("id")).toString();
     const bool knownPrompt = m_promptRequests.contains(requestId);
     const auto submitted = m_promptRequests.take(requestId);
@@ -472,6 +547,7 @@ void AgentSessionController::handleResponse(const QJsonObject &payload)
         m_chatModel->clear();
         m_rpcClient->requestState();
         m_rpcClient->requestMessages();
+        refreshCommands();
         emit sessionsChanged();
         setStatusText(tr("会话已切换"));
         refreshSessionStats();
@@ -485,6 +561,7 @@ void AgentSessionController::handleResponse(const QJsonObject &payload)
         emit connectedChanged();
         setStatusText(tr("就绪"));
         refreshSessionStats();
+        refreshCommands();
         qCInfo(agentControllerLog) << "[ProjectWorkspace] 新目录会话初始化成功";
     }
 }
@@ -581,12 +658,132 @@ QVariantMap AgentSessionController::sessionStats() const
     return m_sessionStats;
 }
 
+/** 返回 Pi 上报的可用命令，供编辑器补全。 */
+QVariantList AgentSessionController::commands() const
+{
+    return m_commands;
+}
+
+/** 返回待随下一条 Prompt 发送的附件。 */
+QVariantList AgentSessionController::attachments() const
+{
+    return m_attachments;
+}
+
 /** 在会话边界请求真实统计，不按流式增量轮询。 */
 void AgentSessionController::refreshSessionStats()
 {
     if (!connected() || !m_statsSupported)
         return;
     m_statsRequestId = m_rpcClient->requestSessionStats();
+}
+
+/** 请求一次命令列表；未连接时跳过，由初始化流程稍后补发。 */
+void AgentSessionController::refreshCommands()
+{
+    if (!connected())
+        return;
+    m_rpcClient->requestCommands();
+}
+
+/**
+ * 添加本地文件或图片附件；文本在发送时展开为 <file> 块，图片转为 base64。
+ */
+bool AgentSessionController::attachFiles(const QVariantList &fileUrls)
+{
+    if (!connected()) {
+        m_chatModel->appendSystemMessage(tr("Pi 尚未连接，无法添加附件。"), true);
+        return false;
+    }
+    bool added = false;
+    for (const QVariant &value : fileUrls) {
+        QString path = value.toString();
+        const QUrl url(path);
+        if (url.isLocalFile())
+            path = url.toLocalFile();
+        path = QDir::fromNativeSeparators(path);
+        const QFileInfo info(path);
+        if (!info.exists() || !info.isFile()) {
+            m_chatModel->appendSystemMessage(tr("附件不存在或不是文件：%1").arg(path), true);
+            continue;
+        }
+        if (info.size() > kMaximumAttachmentBytes) {
+            m_chatModel->appendSystemMessage(
+                tr("附件超过 10 MiB，已跳过：%1").arg(info.fileName()), true);
+            continue;
+        }
+        QFile file(info.absoluteFilePath());
+        if (!file.open(QIODevice::ReadOnly)) {
+            m_chatModel->appendSystemMessage(tr("无法读取附件：%1").arg(info.fileName()), true);
+            continue;
+        }
+        const QByteArray data = file.readAll();
+        if (data.isEmpty())
+            continue;
+        const QString mimeType = detectImageMimeType(data);
+        QVariantMap entry{
+            {QStringLiteral("name"), info.fileName()},
+            {QStringLiteral("path"), QDir::toNativeSeparators(info.absoluteFilePath())},
+            {QStringLiteral("image"), !mimeType.isEmpty()},
+            {QStringLiteral("size"), info.size()}};
+        if (!mimeType.isEmpty()) {
+            entry.insert(QStringLiteral("mimeType"), mimeType);
+            entry.insert(QStringLiteral("data"), QString::fromLatin1(data.toBase64()));
+        } else {
+            entry.insert(QStringLiteral("text"), decodeTextFile(data));
+        }
+        m_attachments.append(entry);
+        added = true;
+    }
+    if (added) {
+        emit attachmentsChanged();
+        qCInfo(agentControllerLog) << "[AgentAttachments] added; count=" << m_attachments.size();
+    }
+    return added;
+}
+
+/** 移除指定附件，越界时忽略。 */
+void AgentSessionController::removeAttachment(int index)
+{
+    if (index < 0 || index >= m_attachments.size())
+        return;
+    m_attachments.removeAt(index);
+    emit attachmentsChanged();
+}
+
+/** 清空待发送附件。 */
+void AgentSessionController::clearAttachments()
+{
+    if (m_attachments.isEmpty())
+        return;
+    m_attachments.clear();
+    emit attachmentsChanged();
+}
+
+/**
+ * 按 Pi CLI 的约定展开附件：文本包成 <file>，图片附加 base64 并留下文件引用。
+ */
+void AgentSessionController::buildPromptPayload(const QString &text, QString &message,
+                                                QJsonArray &images) const
+{
+    QString filePrefix;
+    QString imageReferences;
+    for (const QVariant &value : m_attachments) {
+        const QVariantMap entry = value.toMap();
+        const QString path = entry.value(QStringLiteral("path")).toString();
+        if (entry.value(QStringLiteral("image")).toBool()) {
+            images.append(QJsonObject{
+                {QStringLiteral("type"), QStringLiteral("image")},
+                {QStringLiteral("data"), entry.value(QStringLiteral("data")).toString()},
+                {QStringLiteral("mimeType"), entry.value(QStringLiteral("mimeType")).toString()}});
+            imageReferences += QStringLiteral("<file name=\"%1\"></file>\n").arg(path);
+        } else {
+            filePrefix += QStringLiteral("<file name=\"%1\">\n%2\n</file>\n")
+                              .arg(path, entry.value(QStringLiteral("text")).toString());
+        }
+    }
+    message = filePrefix + text + (imageReferences.isEmpty() ? QString()
+                                                             : QStringLiteral("\n") + imageReferences);
 }
 
 /** 定时刷新单张标准错误卡片，保留最近十六 KiB，避免控制台诊断刷满消息列表。 */

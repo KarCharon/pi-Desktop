@@ -2,8 +2,10 @@
 
 #include <QObject>
 #include <QHash>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QVariantList>
 #include <QVariantMap>
 #include <QTimer>
 #include <QElapsedTimer>
@@ -28,6 +30,8 @@ class AgentSessionController final : public QObject
     Q_PROPERTY(QString modelName READ modelName NOTIFY modelNameChanged)
     Q_PROPERTY(QString workingText READ workingText NOTIFY workingTextChanged)
     Q_PROPERTY(QVariantMap sessionStats READ sessionStats NOTIFY sessionStatsChanged)
+    Q_PROPERTY(QVariantList commands READ commands NOTIFY commandsChanged)
+    Q_PROPERTY(QVariantList attachments READ attachments NOTIFY attachmentsChanged)
 
 public:
     /**
@@ -52,6 +56,10 @@ public:
     [[nodiscard]] QString workingText() const;
     /** 返回 Pi 提供的会话累计统计与当前上下文估计。 */
     [[nodiscard]] QVariantMap sessionStats() const;
+    /** 返回 Pi 上报的可用命令、提示模板与技能。 */
+    [[nodiscard]] QVariantList commands() const;
+    /** 返回当前待随下一条 Prompt 发送的附件。 */
+    [[nodiscard]] QVariantList attachments() const;
 
     /**
      * 提交用户 Prompt；忙碌时按引导或后续策略排队，返回是否成功写入管道。
@@ -86,6 +94,21 @@ public:
      */
     Q_INVOKABLE void respondToExtension(const QString &id, const QVariantMap &result);
 
+    /**
+     * 添加文件或图片附件；接受本地路径或 file URL 列表。
+     */
+    Q_INVOKABLE bool attachFiles(const QVariantList &fileUrls);
+
+    /**
+     * 移除指定下标的待发送附件。
+     */
+    Q_INVOKABLE void removeAttachment(int index);
+
+    /**
+     * 清空全部待发送附件。
+     */
+    Q_INVOKABLE void clearAttachments();
+
 signals:
     /** 待发送队列变化。 */
     void queueChanged();
@@ -105,6 +128,10 @@ signals:
     void workingTextChanged();
     /** 上下文及累计统计变化。 */
     void sessionStatsChanged();
+    /** 可用命令列表变化。 */
+    void commandsChanged();
+    /** 待发送附件列表变化。 */
+    void attachmentsChanged();
     /** Pi 确认新会话创建成功。 */
     void newSessionCreated();
     /** Session 内容或列表可能已变化。 */
@@ -150,6 +177,10 @@ private:
 
     /** 请求一次统计并记录编号，忽略跨会话的旧响应。 */
     void refreshSessionStats();
+    /** 请求一次可用命令列表。 */
+    void refreshCommands();
+    /** 将附件合并进 Prompt 文本与 images 字段。 */
+    void buildPromptPayload(const QString &text, QString &message, QJsonArray &images) const;
     /** 批量展示有界 stderr，不将普通诊断一律标记为致命错误。 */
     void flushDiagnostics();
     /** 展示运行错误并保留本轮故障标记。 */
@@ -170,6 +201,8 @@ private:
     QString m_modelName;
     QString m_workingText = QStringLiteral("Thinking");
     QVariantMap m_sessionStats;
+    QVariantList m_commands;
+    QVariantList m_attachments;
     QString m_statsRequestId;
     bool m_statsSupported = true;
     bool m_runHadError = false;

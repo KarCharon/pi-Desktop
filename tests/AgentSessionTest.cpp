@@ -42,6 +42,10 @@ static int runFakePi()
         } else if (type == "get_session_stats") {
             data = {{"tokens", QJsonObject{{"total", 105000}}}, {"cost", 0.45},
                     {"contextUsage", QJsonObject{{"tokens", 60000}, {"contextWindow", 200000}, {"percent", 30}}}};
+        } else if (type == "get_commands") {
+            data = {{"commands", QJsonArray{
+                QJsonObject{{"name", "review"}, {"description", "Review staged changes"}, {"source", "prompt"}},
+                QJsonObject{{"name", "skill:brave-search"}, {"description", "Web search"}, {"source", "skill"}}}}};
         } else if (type == "get_messages") {
             data = {{"messages", QJsonArray{}}};
         } else if (type == "get_state") {
@@ -379,6 +383,56 @@ private slots:
         QCOMPARE(restored.count(), 1);
         QCOMPARE(restored.first().first().toString(), QString("later"));
         QVERIFY(agent.busy());
+    }
+
+    /** 命令列表从 get_commands 响应恢复，文本与图片附件按 Pi 约定展开到 Prompt。 */
+    void commandsAndAttachments()
+    {
+        QTemporaryDir profile;
+        QVERIFY(profile.isValid());
+        QFile textFile(profile.filePath("notes.txt"));
+        QVERIFY(textFile.open(QIODevice::WriteOnly));
+        textFile.write("hello attachment");
+        textFile.close();
+        QFile imageFile(profile.filePath("pic.png"));
+        QVERIFY(imageFile.open(QIODevice::WriteOnly));
+        imageFile.write(QByteArray("\x89PNG\r\n\x1a\n", 8) + QByteArray(32, 'x'));
+        imageFile.close();
+
+        PiProcess process;
+        PiRpcClient rpc(&process);
+        ChatModel model;
+        AgentSessionController agent(&process, &rpc, &model);
+        process.setExecutable(QCoreApplication::applicationFilePath());
+        process.setConfigDirectory(profile.path());
+        process.setWorkingDirectory(profile.path());
+        QVERIFY(process.start());
+        QTRY_VERIFY(agent.connected());
+        // 初始化完成后应自动拉取命令列表。
+        QTRY_COMPARE(agent.commands().size(), 2);
+        QCOMPARE(agent.commands().at(0).toMap().value("invocation").toString(), QString("/review"));
+        QCOMPARE(agent.commands().at(1).toMap().value("source").toString(), QString("skill"));
+
+        const QVariantList files{QUrl::fromLocalFile(textFile.fileName()),
+                                 QUrl::fromLocalFile(imageFile.fileName())};
+        QVERIFY(agent.attachFiles(files));
+        QCOMPARE(agent.attachments().size(), 2);
+        QCOMPARE(agent.attachments().at(0).toMap().value("image").toBool(), false);
+        QCOMPARE(agent.attachments().at(1).toMap().value("image").toBool(), true);
+        QCOMPARE(agent.attachments().at(1).toMap().value("mimeType").toString(), QString("image/png"));
+
+        QVERIFY(agent.prompt("describe"));
+        // 文本内容包成 <file>，图片留下文件名引用；发送成功后附件清空。
+        QTRY_VERIFY(agent.queueText().contains("hello attachment"));
+        QVERIFY(agent.queueText().contains("pic.png"));
+        QTRY_COMPARE(agent.attachments().size(), 0);
+
+        QVERIFY(agent.attachFiles(QVariantList{QUrl::fromLocalFile(textFile.fileName())}));
+        QCOMPARE(agent.attachments().size(), 1);
+        agent.removeAttachment(0);
+        QCOMPARE(agent.attachments().size(), 0);
+        process.stop();
+        QTRY_VERIFY(!process.active());
     }
 
     /** 空内容错误不能被当作纯工具消息移除，历史错误也必须保留详情。 */

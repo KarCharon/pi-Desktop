@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic as Basic
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import "../components"
 
@@ -291,12 +292,17 @@ Item {
                         anchors.bottomMargin: 16
                         busy: page.agent.busy
                         connected: page.agent.connected
+                        attachments: page.agent.attachments
+                        commands: page.agent.commands
                         onSubmit: (text, followUp) => {
                             if (page.agent.prompt(text, followUp))
                                 promptEditor.text = ""
                         }
                         onRetrieveRequested: page.agent.retrieveQueue()
                         onAbortRequested: page.agent.abort()
+                        onAttachRequested: attachDialog.open()
+                        onAttachmentRemoved: index => page.agent.removeAttachment(index)
+                        onFilesDropped: urls => page.agent.attachFiles(urls)
                     }
                 }
             }
@@ -313,5 +319,12 @@ Item {
             workspacePath: page.workspacePath
             sessionName: page.agent.sessionName
         }
+    }
+
+    FileDialog {
+        id: attachDialog
+        title: "添加文件或图片到 Prompt"
+        fileMode: FileDialog.OpenFiles
+        onAccepted: page.agent.attachFiles(selectedFiles)
     }
 }

@@ -118,6 +118,14 @@ QString PiRpcClient::requestSessionStats()
 }
 
 /**
+ * 构造 get_commands 命令，返回扩展命令、提示模板与技能。
+ */
+QString PiRpcClient::requestCommands()
+{
+    return sendCommand({{QStringLiteral("type"), QStringLiteral("get_commands")}});
+}
+
+/**
  * 合并扩展 UI 对话 ID 与调用方提供的结果字段。
  */
 QString PiRpcClient::respondToExtension(const QString &id, const QJsonObject &result)
