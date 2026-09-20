@@ -1,0 +1,63 @@
+# Build output
+build/
+build-*/
+dist/
+out/
+install/
+*.user
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.ninja
+.ninja_deps
+.ninja_log
+
+# Qt / moc / rcc / uic generated sources
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.moc
+.qmake.stash
+
+# IDE / tooling
+.qtcreator/
+.vscode/
+.idea/
+.clangd/
+compile_commands.json
+.cache/
+
+# Codebase index (generated)
+.codebase-index/
+
+# Scratch / generated temp artifacts
+.tmp/
+
+# Compiled objects and libraries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+*.pdb
+*.ilk
+*.exp
+
+# Logs and archives
+*.log
+*.zip
+*.7z
+*.tar
+*.tar.gz
+
+# OS noise
+_NUL
+nul
+Thumbs.db
+Desktop.ini
+.DS_Store

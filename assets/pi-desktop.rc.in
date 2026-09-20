@@ -1,0 +1,2 @@
+// 将多尺寸图标嵌入 Windows 程序，供资源管理器和快捷方式使用。
+IDI_ICON1 ICON DISCARDABLE "@CMAKE_CURRENT_SOURCE_DIR@/assets/pi-desktop.ico"

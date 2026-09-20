@@ -1,0 +1,182 @@
+#pragma once
+
+#include <QObject>
+#include <QHash>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QVariantMap>
+#include <QTimer>
+#include <QElapsedTimer>
+
+class ChatModel;
+class PiProcess;
+class PiRpcClient;
+class PiEvent;
+
+/**
+ * 协调当前 Pi Session、Agent 状态、RPC 事件与聊天模型。
+ */
+class AgentSessionController final : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(QString queueText READ queueText NOTIFY queueChanged)
+    Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+    Q_PROPERTY(QString statusText READ statusText NOTIFY statusTextChanged)
+    Q_PROPERTY(QString sessionName READ sessionName NOTIFY sessionChanged)
+    Q_PROPERTY(QString sessionFile READ sessionFile NOTIFY sessionChanged)
+    Q_PROPERTY(QString modelName READ modelName NOTIFY modelNameChanged)
+    Q_PROPERTY(QString workingText READ workingText NOTIFY workingTextChanged)
+    Q_PROPERTY(QVariantMap sessionStats READ sessionStats NOTIFY sessionStatsChanged)
+
+public:
+    /**
+     * 创建当前 Agent Session 的业务控制器。
+     */
+    AgentSessionController(PiProcess *process, PiRpcClient *rpcClient,
+                           ChatModel *chatModel, QObject *parent = nullptr);
+
+    /** 返回 Agent 是否正在处理。 */
+    [[nodiscard]] bool busy() const;
+    /** 返回 Pi 子进程是否已连接。 */
+    [[nodiscard]] bool connected() const;
+    /** 返回用于 UI 展示的运行状态。 */
+    [[nodiscard]] QString statusText() const;
+    /** 返回当前 Session 名称。 */
+    [[nodiscard]] QString sessionName() const;
+    /** 返回当前 Session 文件。 */
+    [[nodiscard]] QString sessionFile() const;
+    /** 返回当前模型名称。 */
+    [[nodiscard]] QString modelName() const;
+    /** 返回当前随机英文工作提示，忙碌期间每十秒切换。 */
+    [[nodiscard]] QString workingText() const;
+    /** 返回 Pi 提供的会话累计统计与当前上下文估计。 */
+    [[nodiscard]] QVariantMap sessionStats() const;
+
+    /**
+     * 提交用户 Prompt；忙碌时按引导或后续策略排队，返回是否成功写入管道。
+     */
+    Q_INVOKABLE bool prompt(const QString &text, bool followUp = false);
+
+    /** 返回 Pi 权威队列摘要。 */
+    QString queueText() const;
+    /** 取回 Pi 队列文本，供编辑器继续编辑。 */
+    Q_INVOKABLE void retrieveQueue();
+
+    /**
+     * 中止当前 Agent 操作。
+     */
+    Q_INVOKABLE void abort();
+
+    /**
+     * 创建新 Session。
+     */
+    Q_INVOKABLE void newSession();
+
+    /**
+     * 切换到历史 Session。
+     */
+    Q_INVOKABLE void switchSession(const QString &path);
+
+    /** 在重启切换目录前关闭提交入口并清除旧会话状态。 */
+    void prepareWorkspaceSwitch();
+
+    /**
+     * 向 Pi 回复扩展 UI 对话。
+     */
+    Q_INVOKABLE void respondToExtension(const QString &id, const QVariantMap &result);
+
+signals:
+    /** 待发送队列变化。 */
+    void queueChanged();
+    /** 将取回或发送失败的文本合并到现有草稿。 */
+    void restoreDraftRequested(const QString &text);
+    /** Agent 忙碌状态变化。 */
+    void busyChanged();
+    /** Pi 连接状态变化。 */
+    void connectedChanged();
+    /** 状态栏文本变化。 */
+    void statusTextChanged();
+    /** 当前 Session 信息变化。 */
+    void sessionChanged();
+    /** 当前模型名称变化。 */
+    void modelNameChanged();
+    /** 英文工作提示变化。 */
+    void workingTextChanged();
+    /** 上下文及累计统计变化。 */
+    void sessionStatsChanged();
+    /** Pi 确认新会话创建成功。 */
+    void newSessionCreated();
+    /** Session 内容或列表可能已变化。 */
+    void sessionsChanged();
+    /** 扩展请求显示交互对话。 */
+    void extensionDialogRequested(const QVariantMap &request);
+    /** 扩展请求修改输入编辑器文本。 */
+    void editorTextRequested(const QString &text);
+
+private:
+    /**
+     * 分派单条 Pi RPC 事件。
+     */
+    void handleEvent(const PiEvent &event);
+
+    /**
+     * 处理 RPC command response。
+     */
+    void handleResponse(const QJsonObject &payload);
+
+    /**
+     * 处理扩展 UI 子协议请求。
+     */
+    void handleExtensionUi(const QJsonObject &payload);
+
+    /**
+     * 更新忙碌状态并发出必要信号。
+     */
+    void setBusy(bool busy);
+
+    /** 随机选择不同的英文提示，仅替换普通思考状态，不覆盖工具或错误状态。 */
+    void rotateWorkingText();
+
+    /**
+     * 更新状态栏文本。
+     */
+    void setStatusText(const QString &status);
+
+    /**
+     * 从 Pi 内容块提取文本。
+     */
+    [[nodiscard]] static QString extractText(const QJsonValue &content);
+
+    /** 请求一次统计并记录编号，忽略跨会话的旧响应。 */
+    void refreshSessionStats();
+    /** 批量展示有界 stderr，不将普通诊断一律标记为致命错误。 */
+    void flushDiagnostics();
+    /** 展示运行错误并保留本轮故障标记。 */
+    void reportRuntimeError(const QString &message);
+
+    PiProcess *m_process;
+    PiRpcClient *m_rpcClient;
+    ChatModel *m_chatModel;
+    bool m_busy = false;
+    bool m_ready = false;
+    QString m_initialStateRequest;
+    QString m_initialMessagesRequest;
+    QString m_queueText;
+    QHash<QString, QPair<QString, bool>> m_promptRequests;
+    QString m_statusText;
+    QString m_sessionName;
+    QString m_sessionFile;
+    QString m_modelName;
+    QString m_workingText = QStringLiteral("Thinking");
+    QVariantMap m_sessionStats;
+    QString m_statsRequestId;
+    bool m_statsSupported = true;
+    bool m_runHadError = false;
+    QTimer m_diagnosticTimer;
+    QTimer m_workingTimer;
+    QByteArray m_diagnostics;
+    QElapsedTimer m_promptElapsed;
+    qint64 m_firstEventMs = -1;
+    qint64 m_firstTextMs = -1;
+};
