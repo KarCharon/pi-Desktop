@@ -303,6 +303,8 @@ Item {
                         anchors.bottomMargin: 16
                         busy: page.agent.busy
                         connected: page.agent.connected
+                        // 输入框最多长到窗口高度的一半，再高由框内滚动条查看。
+                        heightLimit: page.height * 0.5
                         attachments: page.agent.attachments
                         commands: page.agent.commands
                         onSubmit: (text, followUp) => {
@@ -343,8 +345,9 @@ Item {
     Popup {
         id: choiceDialog
         anchors.centerIn: parent
-        width: Math.min(page.width - 80, 520)
-        height: Math.min(page.height - 120, 320)
+        // 宽度与高度随窗口缩放：放大上限，同时不改动换行/滚动行为。
+        width: Math.min(page.width - 80, 560)
+        height: Math.min(page.height - 120, 460)
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
