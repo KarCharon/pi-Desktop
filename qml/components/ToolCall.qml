@@ -21,42 +21,44 @@ Rectangle {
             expanded = true
     }
 
-    implicitHeight: toolColumn.implicitHeight + 20
-    radius: 9
-    color: "#fbfaf7"
-    border.color: root.failed ? "#d9968d" : root.toolState === "running" ? "#d9b47d" : "#e2ddd4"
+    implicitHeight: toolColumn.implicitHeight + Theme.scaled(20)
+    radius: Theme.scaled(9)
+    color: Theme.surface
+    border.color: root.failed ? Theme.dangerBorder
+                : root.toolState === "running" ? Theme.warningBorder : Theme.borderStrong
 
     ColumnLayout {
         id: toolColumn
         anchors.fill: parent
-        anchors.margins: 10
-        spacing: 8
+        anchors.margins: Theme.scaled(10)
+        spacing: Theme.scaled(8)
 
         RowLayout {
             Layout.fillWidth: true
             Label {
                 text: root.expanded ? "⌄" : "›"
-                color: "#8b857b"
-                font.pixelSize: 18
-                Layout.preferredWidth: 16
+                color: Theme.textMuted
+                font.pixelSize: Theme.scaled(18)
+                Layout.preferredWidth: Theme.scaled(16)
             }
             Label {
                 text: root.name || "Tool"
-                color: "#403d37"
-                font.pixelSize: 13
+                color: Theme.textBody
+                font.pixelSize: Theme.scaled(13)
                 font.bold: true
             }
             Label {
                 text: root.inputText ? "  " + root.inputText.replace(/\s+/g, " ").trim().slice(0, 72) : ""
-                color: "#8d877e"
-                font.pixelSize: 11
+                color: Theme.textMuted
+                font.pixelSize: Theme.scaled(11)
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
             Label {
                 text: root.failed ? "失败" : root.toolState === "running" ? "运行中" : "✓"
-                color: root.failed ? "#b65d55" : root.toolState === "running" ? "#b48445" : "#559467"
-                font.pixelSize: 12
+                color: root.failed ? Theme.danger
+                     : root.toolState === "running" ? Theme.warning : Theme.successText
+                font.pixelSize: Theme.scaled(12)
                 font.bold: true
             }
         }
@@ -68,32 +70,34 @@ Rectangle {
             visible: active
             sourceComponent: ColumnLayout {
                 width: detailsLoader.width
-                spacing: 6
-                Label { text: "Input"; color: "#9a948b"; font.pixelSize: 11 }
+                spacing: Theme.scaled(6)
+                Label { text: "Input"; color: Theme.textMuted; font.pixelSize: Theme.scaled(11) }
                 TextArea {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: Math.min(180, Math.max(48, contentHeight + 14))
+                    Layout.preferredHeight: Math.min(Theme.scaled(180), Math.max(Theme.scaled(48), contentHeight + Theme.scaled(14)))
                     text: root.inputText || "(empty)"
                     readOnly: true
                     selectByMouse: true
                     wrapMode: TextEdit.WrapAnywhere
-                    color: "#59554e"
-                    background: Rectangle { color: "#f3f0e9"; radius: 6 }
+                    color: Theme.textBody
+                    background: Rectangle { color: Theme.codeBg; radius: Theme.scaled(6) }
                     font.family: "monospace"
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.scaled(11)
+                    renderType: TextEdit.NativeRendering
                 }
-                Label { text: "Output"; color: "#9a948b"; font.pixelSize: 11 }
+                Label { text: "Output"; color: Theme.textMuted; font.pixelSize: Theme.scaled(11) }
                 TextArea {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: Math.min(260, Math.max(48, contentHeight + 14))
+                    Layout.preferredHeight: Math.min(Theme.scaled(260), Math.max(Theme.scaled(48), contentHeight + Theme.scaled(14)))
                     text: root.outputText || (root.toolState === "running" ? "等待输出…" : "(empty)")
                     readOnly: true
                     selectByMouse: true
                     wrapMode: TextEdit.WrapAnywhere
-                    color: root.failed ? "#a34e49" : "#59554e"
-                    background: Rectangle { color: "#f3f0e9"; radius: 6 }
+                    color: root.failed ? Theme.dangerStrong : Theme.textBody
+                    background: Rectangle { color: Theme.codeBg; radius: Theme.scaled(6) }
                     font.family: "monospace"
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.scaled(11)
+                    renderType: TextEdit.NativeRendering
                 }
             }
         }

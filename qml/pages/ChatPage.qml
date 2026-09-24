@@ -28,8 +28,8 @@ Item {
         property bool selected: false
         property bool accent: false
         property string hint: text
-        readonly property color ink: !enabled ? "#b9b1a6"
-                                             : selected || accent ? "#a96346" : "#736b60"
+        readonly property color ink: !enabled ? Theme.navInkDisabled
+                                             : selected || accent ? Theme.navInkActive : Theme.navInk
         implicitHeight: 34
         implicitWidth: navigationContent.implicitWidth + 24
         leftPadding: 12
@@ -45,15 +45,15 @@ Item {
 
         background: Rectangle {
             radius: 9
-            color: !navigation.enabled ? "#f5f2ed"
-                 : navigation.down ? "#e8d7c8"
-                 : navigation.selected ? "#f0e0d3"
-                 : navigation.hovered ? "#eee7dd"
-                 : navigation.accent ? "#f6ece3" : "#f7f4ef"
+            color: !navigation.enabled ? Theme.navBgDisabled
+                 : navigation.down ? Theme.navBgDown
+                 : navigation.selected ? Theme.navBgSelected
+                 : navigation.hovered ? Theme.navBgHover
+                 : navigation.accent ? Theme.navBgAccent : Theme.navBg
             border.width: 1
-            border.color: navigation.visualFocus ? "#bd7957"
-                        : navigation.selected ? "#dfbba2"
-                        : navigation.hovered ? "#d8cabb" : "#e8e0d5"
+            border.color: navigation.visualFocus ? Theme.accentPressed
+                        : navigation.selected ? Theme.navBorderSelected
+                        : navigation.hovered ? Theme.navBorderHover : Theme.navBorder
             Behavior on color { ColorAnimation { duration: 120 } }
         }
         contentItem: Row {
@@ -143,13 +143,13 @@ Item {
         handle: Rectangle {
             implicitWidth: 6
             implicitHeight: 6
-            color: SplitHandle.pressed ? "#e7ddd1"
-                                      : SplitHandle.hovered ? "#f0ebe3" : "#faf9f6"
+            color: SplitHandle.pressed ? Theme.splitHandlePressed
+                                      : SplitHandle.hovered ? Theme.splitHandleHover : Theme.splitHandle
             Rectangle {
                 anchors.centerIn: parent
                 width: 1
                 height: parent.height
-                color: "#e5e0d7"
+                color: Theme.border
             }
         }
 
@@ -188,7 +188,7 @@ Item {
 
         Rectangle {
             SplitView.fillWidth: true
-            color: "#faf9f6"
+            color: Theme.surfaceAlt
 
             ColumnLayout {
                 anchors.fill: parent
@@ -197,8 +197,8 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 56
-                    color: "#faf9f6"
-                    border.color: "#ebe7df"
+                    color: Theme.surfaceAlt
+                    border.color: Theme.borderSoft
 
                     RowLayout {
                         anchors.fill: parent
@@ -223,7 +223,7 @@ Item {
                         }
                         Label {
                             text: page.agent.sessionName
-                            color: "#34312c"
+                            color: Theme.textPrimary
                             font.pixelSize: 14
                             font.weight: Font.DemiBold
                             elide: Text.ElideRight
@@ -260,7 +260,7 @@ Item {
                               : page.agent.statusText === page.agent.workingText + "…"
                                 ? page.agent.workingText : page.agent.statusText
                         running: page.agent.busy
-                        color: "#a77c64"
+                        color: Theme.accent
                     }
                     Label {
                         // 收起上下文侧栏后仍保留占用摘要；未知值不显示为零。
@@ -268,7 +268,7 @@ Item {
                               ? "Context " + Number(contextPanel.contextUsage.percent).toFixed(1) + "% · "
                                 + contextPanel.contextUsage.tokens + " / " + contextPanel.contextUsage.contextWindow
                               : "Context —"
-                        color: "#858078"
+                        color: Theme.textSecondary
                         font.pixelSize: 11
                     }
                 }
@@ -284,7 +284,7 @@ Item {
                         width: parent.width
                         text: page.agent.queueText || ""
                         wrapMode: Text.Wrap
-                        color: "#a77c64"
+                        color: Theme.accent
                         font.pixelSize: 12
                     }
                 }
@@ -292,7 +292,7 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: promptEditor.implicitHeight + 38
-                    color: "#faf9f6"
+                    color: Theme.surfaceAlt
 
                     PromptEditor {
                         id: promptEditor
@@ -348,7 +348,7 @@ Item {
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle { color: "#fbfaf7"; border.color: "#d8d1c7"; radius: 12 }
+        background: Rectangle { color: Theme.surface; border.color: Theme.borderStrong; radius: 12 }
 
         /** 弹窗标题，区分模型与思考等级。 */
         property string dialogTitle: ""
@@ -376,7 +376,7 @@ Item {
             Label {
                 Layout.fillWidth: true
                 text: choiceDialog.dialogTitle
-                color: "#302d29"
+                color: Theme.textTitle
                 font.pixelSize: 16
                 font.bold: true
             }
@@ -392,9 +392,9 @@ Item {
                     width: choiceList.width
                     height: 38
                     radius: 8
-                    color: choiceMouse.containsMouse ? "#f0e0d3"
-                         : modelData.value === choiceDialog.currentValue ? "#f6ece3" : "transparent"
-                    border.color: modelData.value === choiceDialog.currentValue ? "#dfbba2" : "transparent"
+                    color: choiceMouse.containsMouse ? Theme.accentSoft
+                         : modelData.value === choiceDialog.currentValue ? Theme.accentSofter : "transparent"
+                    border.color: modelData.value === choiceDialog.currentValue ? Theme.accentBorder : "transparent"
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 10
@@ -402,14 +402,14 @@ Item {
                         Label {
                             Layout.fillWidth: true
                             text: modelData.label
-                            color: "#403d37"
+                            color: Theme.textBody
                             font.pixelSize: 13
                             elide: Text.ElideRight
                         }
                         Label {
                             visible: modelData.value === choiceDialog.currentValue
                             text: "当前"
-                            color: "#a96346"
+                            color: Theme.accent
                             font.pixelSize: 11
                         }
                     }

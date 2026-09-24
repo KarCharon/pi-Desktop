@@ -57,6 +57,10 @@ foreach(component
     set_source_files_properties(qml/components/${component}.qml
         PROPERTIES QT_RESOURCE_ALIAS components/${component}.qml)
 endforeach()
+# 配色单例必须显式声明为 singleton，否则 QML 会按普通组件实例化。
+set_source_files_properties(qml/components/Theme.qml
+    PROPERTIES QT_RESOURCE_ALIAS components/Theme.qml
+               QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(pi_Desktop
     URI PiDesktop
@@ -64,6 +68,7 @@ qt_add_qml_module(pi_Desktop
     QML_FILES
         qml/Main.qml
         qml/pages/ChatPage.qml
+        qml/components/Theme.qml
         qml/components/ChatView.qml
         qml/components/WorkspaceScrollBar.qml
         qml/components/WorkingIndicator.qml

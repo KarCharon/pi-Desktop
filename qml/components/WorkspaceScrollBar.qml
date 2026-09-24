@@ -20,8 +20,8 @@ T.ScrollBar {
         implicitWidth: 6
         implicitHeight: 6
         radius: 3
-        color: control.pressed ? "#a77c64"
-                               : control.hovered ? "#aaa298" : "#c9c3b9"
+        color: control.pressed ? Theme.scrollThumbActive
+                               : control.hovered ? Theme.scrollThumbHover : Theme.scrollThumb
     }
     background: Rectangle {
         color: "transparent"

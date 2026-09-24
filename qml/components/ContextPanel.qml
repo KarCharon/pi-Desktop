@@ -21,8 +21,8 @@ Rectangle {
     readonly property bool contextKnown: typeof contextUsage.tokens === "number"
                                          && typeof contextUsage.percent === "number"
                                          && contextUsage.contextWindow > 0
-    color: "#fbfaf7"
-    border.color: "#e9e5de"
+    color: Theme.surface
+    border.color: Theme.borderSoft
 
     ScrollView {
         anchors.fill: parent
@@ -59,7 +59,7 @@ Rectangle {
             Label {
                 Layout.fillWidth: true
                 text: "Context"
-                color: "#292824"
+                color: Theme.textTitle
                 font.pixelSize: 17
                 font.bold: true
             }
@@ -69,19 +69,19 @@ Rectangle {
                 Layout.topMargin: 10
                 implicitHeight: contextColumn.implicitHeight + 24
                 radius: 10
-                color: "#f8f6f1"
-                border.color: "#e5e0d7"
+                color: Theme.surfaceSunken
+                border.color: Theme.border
 
                 ColumnLayout {
                     id: contextColumn
                     anchors.fill: parent
                     anchors.margins: 12
                     spacing: 4
-                    Label { text: "当前项目"; color: "#3b3934"; font.bold: true }
+                    Label { text: "当前项目"; color: Theme.textBody; font.bold: true }
                     Label {
                         Layout.fillWidth: true
                         text: root.workspacePath
-                        color: "#858078"
+                        color: Theme.textSecondary
                         font.pixelSize: 11
                         elide: Text.ElideMiddle
                     }
@@ -93,15 +93,15 @@ Rectangle {
                 Layout.topMargin: 8
                 implicitHeight: tokenColumn.implicitHeight + 24
                 radius: 10
-                color: "#f8f6f1"
-                border.color: "#e5e0d7"
+                color: Theme.surfaceSunken
+                border.color: Theme.border
 
                 ColumnLayout {
                     id: tokenColumn
                     anchors.fill: parent
                     anchors.margins: 12
                     spacing: 4
-                    Label { text: "对话上下文"; color: "#3b3934"; font.bold: true }
+                    Label { text: "对话上下文"; color: Theme.textBody; font.bold: true }
                     Label {
                         Layout.fillWidth: true
                         wrapMode: Text.Wrap
@@ -110,7 +110,7 @@ Rectangle {
                                 + " / " + Number(root.contextUsage.contextWindow).toLocaleString(Qt.locale(), 'f', 0)
                                 + " tokens（" + Number(root.contextUsage.percent).toFixed(1) + "%）"
                               : "上下文用量未知 / 等待 Pi 更新"
-                        color: "#858078"
+                        color: Theme.textSecondary
                         font.pixelSize: 11
                     }
                     ProgressBar {
@@ -127,7 +127,7 @@ Rectangle {
                               + "\n输入 / 输出：" + (root.tokenUsage.input ?? "—") + " / " + (root.tokenUsage.output ?? "—")
                               + "\n缓存读 / 写：" + (root.tokenUsage.cacheRead ?? "—") + " / " + (root.tokenUsage.cacheWrite ?? "—")
                               + "\n累计费用：" + (typeof root.sessionStats.cost === "number" ? "$" + root.sessionStats.cost.toFixed(4) : "—")
-                        color: "#858078"
+                        color: Theme.textSecondary
                         font.pixelSize: 11
                     }
                 }
@@ -153,7 +153,7 @@ Rectangle {
             spacing: 10
             Label {
                 text: outlineRoot.icon
-                color: outlineRoot.active ? "#bb7050" : "#73716a"
+                color: outlineRoot.active ? Theme.accent : Theme.textSecondary
                 font.pixelSize: 16
                 Layout.preferredWidth: 22
                 horizontalAlignment: Text.AlignHCenter
@@ -164,7 +164,7 @@ Rectangle {
                 Label {
                     Layout.fillWidth: true
                     text: outlineRoot.title
-                    color: "#393733"
+                    color: Theme.textBody
                     font.pixelSize: 13
                     font.bold: outlineRoot.active
                     elide: Text.ElideRight
@@ -172,7 +172,7 @@ Rectangle {
                 Label {
                     Layout.fillWidth: true
                     text: outlineRoot.subtitle
-                    color: "#938f87"
+                    color: Theme.textMuted
                     font.pixelSize: 11
                     elide: Text.ElideRight
                 }
@@ -184,7 +184,7 @@ Rectangle {
             y: outlineRoot.height - 1
             width: 1
             height: 14
-            color: "#ddd8cf"
+            color: Theme.divider
         }
     }
 
@@ -202,7 +202,7 @@ Rectangle {
         implicitHeight: 62
         radius: 9
         color: "transparent"
-        border.color: "#e8e3da"
+        border.color: Theme.borderSoft
 
         RowLayout {
             anchors.fill: parent
@@ -212,14 +212,14 @@ Rectangle {
                 Layout.preferredWidth: 30
                 Layout.preferredHeight: 30
                 radius: 7
-                color: "#f1eee8"
+                color: Theme.chipBg
                 Label { anchors.centerIn: parent; text: fileRoot.icon; color: fileRoot.accent; font.pixelSize: 16 }
             }
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 3
-                Label { Layout.fillWidth: true; text: fileRoot.name; color: "#48453f"; elide: Text.ElideRight }
-                Label { Layout.fillWidth: true; text: fileRoot.path; color: "#969189"; font.pixelSize: 10; elide: Text.ElideMiddle }
+                Label { Layout.fillWidth: true; text: fileRoot.name; color: Theme.textBody; elide: Text.ElideRight }
+                Label { Layout.fillWidth: true; text: fileRoot.path; color: Theme.textMuted; font.pixelSize: 10; elide: Text.ElideMiddle }
             }
             ToolButton { text: "⋯"; implicitWidth: 24; implicitHeight: 24 }
         }

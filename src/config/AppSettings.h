@@ -14,6 +14,7 @@ class AppSettings final : public QObject
     Q_PROPERTY(QString workspacePath READ workspacePath WRITE setWorkspacePath NOTIFY workspacePathChanged)
     Q_PROPERTY(QString piProfilePath READ piProfilePath WRITE setPiProfilePath NOTIFY piProfilePathChanged)
     Q_PROPERTY(QString proxyUrl READ proxyUrl WRITE setProxyUrl NOTIFY proxyUrlChanged)
+    Q_PROPERTY(QString uiTheme READ uiTheme WRITE setUiTheme NOTIFY uiThemeChanged)
     Q_PROPERTY(QStringList profileDirectories READ profileDirectories NOTIFY discoveryChanged)
     Q_PROPERTY(QStringList executablePaths READ executablePaths NOTIFY discoveryChanged)
     Q_PROPERTY(QString discoverySummary READ discoverySummary NOTIFY discoveryChanged)
@@ -58,6 +59,13 @@ public:
     void setProxyUrl(const QString &value);
     static bool isValidProxyUrl(const QString &value);
 
+    /** 返回界面主题：light 或 dark，未配置时回退浅色。 */
+    [[nodiscard]] QString uiTheme() const;
+    /** 保存界面主题，非法值归一化为浅色，仅在变化时持久化。 */
+    void setUiTheme(const QString &value);
+    /** 判断主题名是否表示深色，供主程序与界面共用。 */
+    static bool isDarkTheme(const QString &value);
+
     /** 返回自动发现的 Profile 目录列表。 */
     QStringList profileDirectories() const;
     /** 返回自动发现的 Pi 程序路径列表。 */
@@ -76,6 +84,8 @@ public:
 
 signals:
     void proxyUrlChanged();
+    /** 界面主题发生变化，用于同步应用调色板与系统配色方案。 */
+    void uiThemeChanged();
     /** 自动发现结果已更新。 */
     void discoveryChanged();
     /** 候选删除错误状态已更新。 */

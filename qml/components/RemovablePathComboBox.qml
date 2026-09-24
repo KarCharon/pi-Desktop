@@ -103,7 +103,7 @@ Basic.ComboBox {
                 Layout.fillWidth: true
                 text: root.removalError
                 visible: text.length > 0
-                color: "#b65e5a"
+                color: Theme.danger
                 wrapMode: Text.WordWrap
             }
         }

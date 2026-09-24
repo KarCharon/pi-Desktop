@@ -78,8 +78,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 13
-        color: "#ffffff"
-        border.color: editor.activeFocus ? "#c87b59" : "#e2ddd5"
+        color: Theme.surfaceRaised
+        border.color: editor.activeFocus ? Theme.accentHover : Theme.borderStrong
 
         ColumnLayout {
             anchors.fill: parent
@@ -92,8 +92,8 @@ Item {
                 Layout.fillHeight: true
                 placeholderText: root.connected ? "Ask pi… 输入 / 使用命令" : "正在连接 Pi…"
                 enabled: root.connected
-                color: "#403d37"
-                placeholderTextColor: "#aaa49b"
+                color: Theme.textBody
+                placeholderTextColor: Theme.textFaint
                 wrapMode: TextEdit.Wrap
                 background: null
                 leftPadding: 4
@@ -102,6 +102,8 @@ Item {
                 bottomPadding: 0
                 font.pixelSize: 14
                 selectByMouse: true
+                // 原生渲染让输入与选中状态的字重、字形保持一致。
+                renderType: TextEdit.NativeRendering
 
                 onTextChanged: root.updateCommandPopup()
                 onCursorPositionChanged: root.updateCommandPopup()
@@ -161,27 +163,27 @@ Item {
                         height: 26
                         width: chipLayout.implicitWidth + 20
                         radius: 7
-                        color: "#f1eee8"
-                        border.color: "#e2ddd5"
+                        color: Theme.chipBg
+                        border.color: Theme.borderStrong
                         RowLayout {
                             id: chipLayout
                             anchors.centerIn: parent
                             spacing: 5
                             Label {
                                 text: modelData.image ? "□" : "▤"
-                                color: "#a96346"
+                                color: Theme.accent
                                 font.pixelSize: 12
                             }
                             Label {
                                 text: modelData.name
-                                color: "#5c5850"
+                                color: Theme.textBody
                                 font.pixelSize: 11
                                 elide: Text.ElideMiddle
                                 Layout.maximumWidth: 170
                             }
                             Label {
                                 text: "×"
-                                color: "#a96346"
+                                color: Theme.accent
                                 font.pixelSize: 14
                                 MouseArea {
                                     anchors.fill: parent
@@ -206,13 +208,17 @@ Item {
                     ToolTip.visible: hovered
                     ToolTip.text: "添加文件或图片"
                     enabled: root.connected
-                    background: Rectangle { color: addButton.down ? "#ede8e0" : "#f7f5f0"; border.color: "#e5dfd6"; radius: 8 }
+                    background: Rectangle {
+                        color: addButton.down ? Theme.sideBtnHover : Theme.navBg
+                        border.color: Theme.border
+                        radius: 8
+                    }
                     onClicked: root.attachRequested()
                 }
                 Item { Layout.fillWidth: true }
                 Label {
                     text: root.busy ? "Enter 引导 · Alt+Enter 后续 · Esc 停止" : "Enter 发送 · Shift+Enter 换行"
-                    color: "#9b958b"
+                    color: Theme.textMuted
                     font.pixelSize: 10
                 }
                 Button {
@@ -228,8 +234,13 @@ Item {
                     enabled: root.connected && editor.text.trim().length > 0
                     font.pixelSize: 12
                     font.bold: true
-                    palette.buttonText: "#ffffff"
-                    background: Rectangle { color: sendButton.enabled ? (sendButton.down ? "#ad6248" : "#c57958") : "#d9b9aa"; radius: 9 }
+                    palette.buttonText: Theme.textOnAccent
+                    background: Rectangle {
+                        color: sendButton.enabled
+                               ? (sendButton.down ? Theme.accentPressed : Theme.accentHover)
+                               : Theme.accentBorder
+                        radius: 9
+                    }
                     onClicked: root.submitCurrent(false)
                 }
             }
@@ -245,8 +256,8 @@ Item {
         x: editor.mapToItem(root, 0, 0).x
         y: editor.mapToItem(root, 0, 0).y - height - 6
         radius: 9
-        color: "#ffffff"
-        border.color: "#d8d1c7"
+        color: Theme.surfaceRaised
+        border.color: Theme.borderStrong
 
         ListView {
             id: commandList
@@ -259,7 +270,7 @@ Item {
                 width: ListView.view.width
                 height: 32
                 radius: 6
-                color: index === root.commandIndex ? "#f0e0d3" : "transparent"
+                color: index === root.commandIndex ? Theme.accentSoft : "transparent"
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 8
@@ -267,20 +278,20 @@ Item {
                     spacing: 8
                     Label {
                         text: modelData.invocation
-                        color: "#a96346"
+                        color: Theme.accent
                         font.pixelSize: 12
                         font.bold: true
                     }
                     Label {
                         Layout.fillWidth: true
                         text: modelData.description
-                        color: "#7a756d"
+                        color: Theme.textSecondary
                         font.pixelSize: 11
                         elide: Text.ElideRight
                     }
                     Label {
                         text: modelData.source === "desktop" ? "内置" : modelData.source
-                        color: "#b3ada4"
+                        color: Theme.textFaint
                         font.pixelSize: 9
                     }
                 }

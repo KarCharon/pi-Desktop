@@ -9,19 +9,19 @@ Rectangle {
     required property string messageText
     required property bool failed
 
-    implicitHeight: systemLabel.implicitHeight + 18
-    radius: 8
-    color: root.failed ? "#301c22" : "#161c26"
-    border.color: root.failed ? "#74404a" : "#283143"
+    implicitHeight: systemLabel.implicitHeight + Theme.scaled(18)
+    radius: Theme.scaled(8)
+    color: root.failed ? Theme.systemFailBg : Theme.systemBg
+    border.color: root.failed ? Theme.systemFailBorder : Theme.systemBorder
 
     Label {
         id: systemLabel
         anchors.fill: parent
-        anchors.margins: 9
+        anchors.margins: Theme.scaled(9)
         text: root.messageText
-        color: root.failed ? "#ff9aa6" : "#8793a7"
+        color: root.failed ? Theme.systemFailText : Theme.systemText
         wrapMode: Text.WordWrap
         horizontalAlignment: Text.AlignHCenter
-        font.pixelSize: 12
+        font.pixelSize: Theme.scaled(12)
     }
 }

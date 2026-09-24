@@ -110,6 +110,35 @@ void AppSettings::setProxyUrl(const QString &value)
     emit proxyUrlChanged();
 }
 
+/**
+ * 读取界面主题；未知值一律回退浅色，避免脏配置把界面切成不可预期的配色。
+ */
+QString AppSettings::uiTheme() const
+{
+    const QString stored = m_settings.value(QStringLiteral("ui/theme"), QStringLiteral("light")).toString();
+    return isDarkTheme(stored) ? QStringLiteral("dark") : QStringLiteral("light");
+}
+
+/**
+ * 保存界面主题；仅接受 light/dark，且仅在变化时写入并通知。
+ */
+void AppSettings::setUiTheme(const QString &value)
+{
+    const QString normalized = isDarkTheme(value) ? QStringLiteral("dark") : QStringLiteral("light");
+    if (normalized == uiTheme())
+        return;
+    m_settings.setValue(QStringLiteral("ui/theme"), normalized);
+    emit uiThemeChanged();
+}
+
+/**
+ * 判断主题名是否表示深色。
+ */
+bool AppSettings::isDarkTheme(const QString &value)
+{
+    return value == QStringLiteral("dark");
+}
+
 /** 归一化有效目录并去重，仅检查目录元数据，不读取凭据或会话文件。 */
 QStringList AppSettings::discoverProfiles(const QString &home, const QString &environmentDirectory,
                                           const QString &currentProfile, int *skipped)

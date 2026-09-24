@@ -18,16 +18,23 @@ ApplicationWindow {
     minimumHeight: 720
     visible: true
     title: "Pi — " + appController.agent.sessionName
-    color: "#f7f5f0"
+    color: Theme.windowBg
 
-    Material.theme: Material.Light
-    Material.accent: "#bd7050"
+    Material.theme: Theme.dark ? Material.Dark : Material.Light
+    Material.accent: Theme.accent
     property var pendingExtensionRequest: ({})
+
+    // 让全局配色单例跟随用户设置，各组件读取 Theme.* 即可自动刷新。
+    Binding {
+        target: Theme
+        property: "dark"
+        value: appController.settings.uiTheme === "dark"
+    }
 
     header: Rectangle {
         implicitHeight: 52
-        color: "#fbfaf7"
-        border.color: "#e6e1d8"
+        color: Theme.surface
+        border.color: Theme.border
 
         RowLayout {
             anchors.fill: parent
@@ -53,14 +60,14 @@ ApplicationWindow {
             }
             Label {
                 text: "Pi"
-                color: "#312e2a"
+                color: Theme.textPrimary
                 font.pixelSize: 15
                 font.bold: true
             }
-            Rectangle { implicitWidth: 1; implicitHeight: 20; color: "#ded9d0" }
+            Rectangle { implicitWidth: 1; implicitHeight: 20; color: Theme.divider }
             Label {
                 text: appController.settings.workspacePath
-                color: "#77736c"
+                color: Theme.textSecondary
                 font.pixelSize: 12
                 elide: Text.ElideMiddle
                 Layout.maximumWidth: 360
@@ -68,7 +75,7 @@ ApplicationWindow {
             Item { Layout.fillWidth: true }
             Label {
                 text: appController.agent.modelName
-                color: "#8a857d"
+                color: Theme.textSecondary
                 font.pixelSize: 11
                 elide: Text.ElideRight
                 Layout.maximumWidth: 220
@@ -77,12 +84,12 @@ ApplicationWindow {
                 implicitWidth: connectionLabel.implicitWidth + 18
                 implicitHeight: 25
                 radius: 13
-                color: appController.agent.connected ? "#e2f1e8" : "#f6e2df"
+                color: appController.agent.connected ? Theme.successSoft : Theme.dangerSoft
                 Label {
                     id: connectionLabel
                     anchors.centerIn: parent
                     text: appController.agent.connected ? "Ready" : "Offline"
-                    color: appController.agent.connected ? "#43835c" : "#b65e5a"
+                    color: appController.agent.connected ? Theme.success : Theme.danger
                     font.pixelSize: 11
                     font.bold: true
                 }
@@ -116,20 +123,20 @@ ApplicationWindow {
 
     footer: Rectangle {
         implicitHeight: 28
-        color: "#f4f1eb"
-        border.color: "#e5e0d7"
+        color: Theme.footerBg
+        border.color: Theme.border
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 18
             anchors.rightMargin: 18
             Label {
                 text: "●"
-                color: appController.agent.connected ? "#4fa369" : "#c2655e"
+                color: appController.agent.connected ? Theme.success : Theme.danger
                 font.pixelSize: 12
             }
             Label {
                 text: appController.agent.statusText
-                color: "#77736c"
+                color: Theme.textSecondary
                 font.pixelSize: 11
                 Layout.fillWidth: true
             }
@@ -137,7 +144,7 @@ ApplicationWindow {
                 text: "Profile: " + appController.settings.piProfilePath
                 elide: Text.ElideMiddle
                 Layout.maximumWidth: 400
-                color: "#aaa49a"
+                color: Theme.textFaint
                 font.pixelSize: 10
             }
         }
@@ -214,7 +221,22 @@ ApplicationWindow {
         ColumnLayout {
             width: parent.width
             spacing: 10
-            Label { text: "Pi 命令或可执行文件"; color: "#514d46" }
+            Label { text: "界面主题"; color: Theme.textBody }
+            RowLayout {
+                spacing: 8
+                Button {
+                    text: "浅色"
+                    // highlighted 只反映当前选择，点击后由绑定统一刷新两个按钮。
+                    highlighted: appController.settings.uiTheme !== "dark"
+                    onClicked: appController.settings.uiTheme = "light"
+                }
+                Button {
+                    text: "深色"
+                    highlighted: appController.settings.uiTheme === "dark"
+                    onClicked: appController.settings.uiTheme = "dark"
+                }
+            }
+            Label { text: "Pi 命令或可执行文件"; color: Theme.textBody }
             RowLayout {
                 Layout.fillWidth: true
                 RemovablePathComboBox {
@@ -229,7 +251,7 @@ ApplicationWindow {
                 }
                 Button { text: "浏览"; onClicked: executableDialog.open() }
             }
-            Label { text: "Agent 工作目录"; color: "#514d46" }
+            Label { text: "Agent 工作目录"; color: Theme.textBody }
             RowLayout {
                 Layout.fillWidth: true
                 TextField { id: workspaceField; Layout.fillWidth: true; placeholderText: "项目目录" }
@@ -241,7 +263,7 @@ ApplicationWindow {
                     }
                 }
             }
-            Label { text: "后台 Pi 代理（HTTP / HTTPS）"; color: "#514d46" }
+            Label { text: "后台 Pi 代理（HTTP / HTTPS）"; color: Theme.textBody }
             TextField {
                 id: proxyField
                 Layout.fillWidth: true
@@ -252,10 +274,10 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#77736c"
+                color: Theme.textSecondary
                 text: "保存并重连后生效，不修改系统代理。保留 NO_PROXY 绕过规则；地址明文保存在本机，请勿填写敏感密码。"
             }
-            Label { text: "Pi Profile 目录"; color: "#514d46" }
+            Label { text: "Pi Profile 目录"; color: Theme.textBody }
             RowLayout {
                 Layout.fillWidth: true
                 RemovablePathComboBox {
@@ -275,7 +297,7 @@ ApplicationWindow {
                 Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    color: "#77736c"
+                    color: Theme.textSecondary
                     text: appController.settings.discoverySummary
                 }
                 Button {
@@ -295,13 +317,13 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#a96a4f"
+                color: Theme.accentText
                 text: "选择 Profile 本身的目录，而不是 sessions 子目录。保存后重连 Pi 并切换会话列表；不会复制或覆盖原 Profile 文件。"
             }
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#b65e5a"
+                color: Theme.danger
                 visible: text.length > 0
                 text: appController.agent.busy ? "请先停止当前任务，再保存连接设置。" : appController.settingsError
             }
@@ -316,7 +338,7 @@ ApplicationWindow {
         modal: true
         focus: true
         closePolicy: Popup.NoAutoClose
-        background: Rectangle { color: "#fbfaf7"; border.color: "#d8d1c7"; radius: 12 }
+        background: Rectangle { color: Theme.surface; border.color: Theme.borderStrong; radius: 12 }
 
         ColumnLayout {
             id: extensionContent
@@ -326,7 +348,7 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true
                 text: root.pendingExtensionRequest.title || "Pi 扩展请求"
-                color: "#302d29"
+                color: Theme.textTitle
                 font.pixelSize: 17
                 font.bold: true
                 wrapMode: Text.WordWrap
@@ -335,7 +357,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 visible: text.length > 0
                 text: root.pendingExtensionRequest.message || ""
-                color: "#716c63"
+                color: Theme.textSecondary
                 wrapMode: Text.WordWrap
             }
             ComboBox {
@@ -351,6 +373,7 @@ ApplicationWindow {
                 visible: root.pendingExtensionRequest.method === "input" || root.pendingExtensionRequest.method === "editor"
                 placeholderText: root.pendingExtensionRequest.placeholder || "请输入…"
                 wrapMode: TextEdit.Wrap
+                renderType: TextEdit.NativeRendering
             }
             RowLayout {
                 Layout.alignment: Qt.AlignRight

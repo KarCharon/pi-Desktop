@@ -1,0 +1,15 @@
+# 该 qmldir 仅用于「按目录导入」场景（例如 tests/qml 直接 import "../../qml/components"）。
+# 正式应用通过 PiDesktop 模块加载组件，模块 qmldir 由 qt_add_qml_module 生成。
+# 这里显式声明 Theme 为单例，保证目录导入时也能解析到统一配色。
+singleton Theme 1.0 Theme.qml
+ChatView 1.0 ChatView.qml
+WorkspaceScrollBar 1.0 WorkspaceScrollBar.qml
+WorkingIndicator 1.0 WorkingIndicator.qml
+RemovablePathComboBox 1.0 RemovablePathComboBox.qml
+UserMessage 1.0 UserMessage.qml
+AssistantMessage 1.0 AssistantMessage.qml
+SystemMessage 1.0 SystemMessage.qml
+ToolCall 1.0 ToolCall.qml
+PromptEditor 1.0 PromptEditor.qml
+SessionSidebar 1.0 SessionSidebar.qml
+ContextPanel 1.0 ContextPanel.qml

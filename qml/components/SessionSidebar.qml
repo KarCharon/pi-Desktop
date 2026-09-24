@@ -66,8 +66,8 @@ Rectangle {
         console.info("[Projects] 请求删除确认；id=" + entry.id + "; kind=" + entry.kind)
     }
 
-    color: "#f3f0e9"
-    border.color: "#e7e2d8"
+    color: Theme.sidebarBg
+    border.color: Theme.borderSoft
 
     /** 沿用会话栏暖色按钮，避免新增导航出现原生深色背景。 */
     component SidebarButton: Basic.Button {
@@ -78,15 +78,16 @@ Rectangle {
         hoverEnabled: true
         contentItem: Text {
             text: control.text
-            color: control.enabled ? "#786451" : "#b8afa3"
+            color: control.enabled ? Theme.sideBtnInk : Theme.sideBtnInkDisabled
             font.pixelSize: 12
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
         background: Rectangle {
             radius: 6
-            color: control.down ? "#e1d8cb" : control.hovered ? "#e9e3d9" : "transparent"
-            border.color: control.visualFocus ? "#c47a59" : "transparent"
+            color: control.down ? Theme.sideBtnDown
+                 : control.hovered ? Theme.sideBtnHover : "transparent"
+            border.color: control.visualFocus ? Theme.accentHover : "transparent"
         }
     }
 
@@ -106,13 +107,17 @@ Rectangle {
             text: "+   新建对话"
             contentItem: Text {
                 text: newChatButton.text
-                color: "#ffffff"
+                color: Theme.textOnAccent
                 font.pixelSize: 14
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
-            background: Rectangle { color: newChatButton.down ? "#ae6548" : "#c47a59"; radius: 9; opacity: newChatButton.enabled ? 1 : 0.5 }
+            background: Rectangle {
+                color: newChatButton.down ? Theme.accentPressed : Theme.accentHover
+                radius: 9
+                opacity: newChatButton.enabled ? 1 : 0.5
+            }
             onClicked: root.newSessionRequested()
         }
 
@@ -123,11 +128,11 @@ Rectangle {
             Layout.preferredHeight: 40
             placeholderText: "搜索项目、文件夹或对话…"
             leftPadding: 14
-            color: "#4b4842"
-            placeholderTextColor: "#969087"
+            color: Theme.textBody
+            placeholderTextColor: Theme.textMuted
             background: Rectangle {
-                color: "#faf9f6"
-                border.color: searchField.activeFocus ? "#c47a59" : "#e1dcd3"
+                color: Theme.surfaceAlt
+                border.color: searchField.activeFocus ? Theme.accentHover : Theme.borderStrong
                 radius: 9
             }
             onTextChanged: root.searchQuery = text.trim().toLowerCase()
@@ -139,7 +144,7 @@ Rectangle {
             Layout.bottomMargin: 8
             Label {
                 text: "项目"
-                color: "#393631"
+                color: Theme.textPrimary
                 font.pixelSize: 14
                 font.bold: true
                 Layout.fillWidth: true
@@ -173,7 +178,7 @@ Rectangle {
             Layout.bottomMargin: visible ? 8 : 0
             visible: text.length > 0
             text: root.navigationError || (root.projects ? root.projects.error : "")
-            color: "#a95137"
+            color: Theme.accentText
             wrapMode: Text.Wrap
             font.pixelSize: 11
         }
@@ -202,7 +207,8 @@ Rectangle {
                 visible: matches
                 clip: true
                 radius: 9
-                color: selected ? "#e9e4da" : entryMouse.containsMouse ? "#ebe7df" : "transparent"
+                color: selected ? Theme.rowSelected
+                     : entryMouse.containsMouse ? Theme.rowHover : "transparent"
 
                 MouseArea {
                     id: entryMouse
@@ -236,7 +242,7 @@ Rectangle {
                         Label {
                             Layout.fillWidth: true
                             text: entry.modelData.title
-                            color: entry.isSession ? "#403d37" : "#786451"
+                            color: entry.isSession ? Theme.textBody : Theme.rowFolderInk
                             font.pixelSize: entry.isSession ? 13 : 12
                             font.bold: entry.selected || !entry.isSession && !entry.isFolder
                             elide: Text.ElideRight
@@ -245,7 +251,7 @@ Rectangle {
                             Layout.fillWidth: true
                             visible: entry.isSession || entry.isFolder
                             text: entry.isFolder ? entry.modelData.path : (entry.modelData.preview || "")
-                            color: "#969087"
+                            color: Theme.textMuted
                             font.pixelSize: 10
                             elide: entry.isFolder ? Text.ElideMiddle : Text.ElideRight
                         }
@@ -253,7 +259,7 @@ Rectangle {
                     Label {
                         visible: entry.isSession
                         text: entry.modelData.updatedAt || ""
-                        color: "#8e887f"
+                        color: Theme.textMuted
                         font.pixelSize: 10
                     }
                     SidebarButton {
@@ -301,7 +307,7 @@ Rectangle {
                 text: root.model.loading ? "正在加载历史会话…" : "点击项目旁的 +\n创建项目并添加工作文件夹"
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
-                color: "#938e85"
+                color: Theme.textMuted
                 font.pixelSize: 12
             }
         }
@@ -312,10 +318,10 @@ Rectangle {
             Layout.bottomMargin: 8
             text: (root.switching ? "切换中：" : "工作目录：") + root.workspacePath
             elide: Text.ElideMiddle
-            color: "#938e85"
+            color: Theme.textMuted
             font.pixelSize: 10
         }
-        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: "#e3ded5" }
+        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.divider }
         SidebarButton {
             Layout.fillWidth: true
             Layout.bottomMargin: 10
@@ -327,7 +333,7 @@ Rectangle {
 
     Basic.Menu {
         id: entryMenu
-        background: Rectangle { color: "#faf9f6"; border.color: "#e1dcd3"; radius: 8 }
+        background: Rectangle { color: Theme.surfaceAlt; border.color: Theme.borderStrong; radius: 8 }
         Basic.MenuItem {
             text: "添加工作文件夹"
             enabled: root.sessionActionsEnabled && !root.switching
@@ -357,21 +363,25 @@ Rectangle {
         modal: true
         width: 340
         title: root.menuEntry.id ? "重命名" : "添加项目"
-        background: Rectangle { color: "#faf9f6"; radius: 10; border.color: "#e1dcd3" }
+        background: Rectangle { color: Theme.surfaceAlt; radius: 10; border.color: Theme.borderStrong }
         contentItem: ColumnLayout {
             TextField {
                 id: nameField
                 Layout.fillWidth: true
                 placeholderText: "自定义显示名称"
-                color: "#403d37"
+                color: Theme.textBody
                 selectByMouse: true
-                background: Rectangle { color: "#ffffff"; radius: 6; border.color: "#e1dcd3" }
+                background: Rectangle {
+                    color: Theme.surfaceRaised
+                    radius: 6
+                    border.color: Theme.borderStrong
+                }
             }
             Label {
                 Layout.fillWidth: true
                 visible: text.length > 0
                 text: root.projects ? root.projects.error : ""
-                color: "#a95137"
+                color: Theme.accentText
                 wrapMode: Text.Wrap
             }
             RowLayout {
@@ -401,26 +411,26 @@ Rectangle {
         modal: true
         closePolicy: Popup.NoAutoClose
         title: root.removalEntry.kind === "project" ? "确认删除项目？" : "确认删除工作文件夹？"
-        background: Rectangle { color: "#faf9f6"; radius: 10; border.color: "#e1dcd3" }
+        background: Rectangle { color: Theme.surfaceAlt; radius: 10; border.color: Theme.borderStrong }
         contentItem: ColumnLayout {
             Label {
                 Layout.fillWidth: true
                 text: "将删除列表项：" + (root.removalEntry.title || "")
                 wrapMode: Text.WrapAnywhere
-                color: "#625e56"
+                color: Theme.textSecondary
             }
             Label {
                 Layout.fillWidth: true
                 text: "仅移除项目栏配置，不删除磁盘文件或会话，不改变当前工作目录。删除项目会同时移除其工作文件夹关联；历史会话仍可在未分组中找到。"
                 wrapMode: Text.Wrap
-                color: "#625e56"
+                color: Theme.textSecondary
             }
             Label {
                 Layout.fillWidth: true
                 visible: text.length > 0
                 text: root.projects ? root.projects.error : ""
                 wrapMode: Text.Wrap
-                color: "#a95137"
+                color: Theme.accentText
             }
         }
         footer: DialogButtonBox {

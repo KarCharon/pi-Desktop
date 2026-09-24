@@ -10,7 +10,7 @@ Item {
     id: root
     property string text: "Thinking"
     property bool running: false
-    property color color: "#9b958b"
+    property color color: Theme.textMuted
     property int fontPixelSize: 11
     implicitWidth: caption.implicitWidth + dots.width
     implicitHeight: Math.max(20, caption.implicitHeight)
