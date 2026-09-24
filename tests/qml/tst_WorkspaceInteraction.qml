@@ -131,9 +131,10 @@ TestCase {
         var sidebar = findChild(page, "sessionSidebar")
         var list = findChild(page, "recentSessions")
         sidebar.toggleFolder("f")
-        tryCompare(list, "contentHeight", 92)
+        // 折叠后仅剩项目（36 + 8）与目录（46），隐藏会话不占高度。
+        tryCompare(list, "contentHeight", 90)
         sidebar.searchQuery = "session 0"
-        tryVerify(function() { return list.contentHeight > 92 })
+        tryVerify(function() { return list.contentHeight > 90 })
         sidebar.searchQuery = ""
         sidebar.toggleFolder("f")
     }

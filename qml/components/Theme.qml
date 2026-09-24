@@ -181,6 +181,14 @@ QtObject {
     readonly property color sideBtnHover: dark ? "#2f2b26" : "#e9e3d9"
     /** 侧栏图标按钮按下背景。 */
     readonly property color sideBtnDown: dark ? "#3a2b22" : "#e1d8cb"
+    /** 当前工作文件夹背景，区别于普通会话选中态。 */
+    readonly property color rowFolderSelected: dark ? "#353029" : "#e7e2d8"
+    /** 项目分组标题背景，用于区分三级层级。 */
+    readonly property color rowProjectBg: dark ? "#2b2722" : "#ece7dd"
+    /** 工作文件夹层级引导线。 */
+    readonly property color rowFolderGuide: dark ? "#43403a" : "#dcd6c9"
+    /** 会话层级引导线，弱于文件夹引导线。 */
+    readonly property color rowSessionGuide: dark ? "#37332e" : "#e4dfd3"
     /** 会话条目选中背景。 */
     readonly property color rowSelected: dark ? "#302c27" : "#e9e4da"
     /** 会话条目悬停背景。 */

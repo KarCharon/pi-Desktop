@@ -25,9 +25,13 @@ Item {
     signal attachRequested()
     signal attachmentRemoved(int index)
     signal filesDropped(var urls)
+    /** 输入框高度上限，由宿主按窗口高度传入；超出后由内部滚动条查看。 */
+    property real heightLimit: 240
 
-    implicitHeight: Math.min(240, Math.max(94, editor.contentHeight + 42
-                                            + (attachmentItems.length > 0 ? 34 : 0)))
+    /** 高度按内容行数自动增长，最高到 heightLimit，再高只滚动、不继续变高。 */
+    implicitHeight: Math.min(Math.max(94, heightLimit),
+                             Math.max(94, editor.contentHeight + 42
+                                         + (attachmentItems.length > 0 ? 34 : 0)))
 
     /**
      * 根据光标前的 `/token` 过滤可用命令并控制补全弹层。
@@ -86,69 +90,88 @@ Item {
             anchors.margins: 10
             spacing: 6
 
-            TextArea {
-                id: editor
+            // TextArea 不是 Flickable，必须由外层 ScrollView 提供滚动条；
+            // 框高按行数增长到上限后不再变高，超出部分用右侧滚动条查看。
+            ScrollView {
+                id: editorScroll
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                placeholderText: root.connected ? "Ask pi… 输入 / 使用命令" : "正在连接 Pi…"
-                enabled: root.connected
-                color: Theme.textBody
-                placeholderTextColor: Theme.textFaint
-                wrapMode: TextEdit.Wrap
-                background: null
-                leftPadding: 4
-                rightPadding: 4
-                topPadding: 2
-                bottomPadding: 0
-                font.pixelSize: 14
-                selectByMouse: true
-                // 原生渲染让输入与选中状态的字重、字形保持一致。
-                renderType: TextEdit.NativeRendering
-
-                onTextChanged: root.updateCommandPopup()
-                onCursorPositionChanged: root.updateCommandPopup()
-                onActiveFocusChanged: {
-                    if (!activeFocus)
-                        root.commandPopupVisible = false
+                padding: 0
+                contentWidth: availableWidth
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                // ScrollView 样式自带的滚动条靠 parent/x/y/height 手动定位，
+                // 覆盖时必须补上这些绑定，否则滑条会落在左上角且拖不动。
+                ScrollBar.vertical: WorkspaceScrollBar {
+                    parent: editorScroll
+                    x: editorScroll.mirrored ? 0 : editorScroll.width - width
+                    y: editorScroll.topPadding
+                    height: editorScroll.availableHeight
                 }
 
-                Keys.onPressed: event => {
-                    if (root.commandPopupVisible
-                            && (event.modifiers & Qt.AltModifier) === 0) {
-                        if (event.key === Qt.Key_Down) {
-                            root.commandIndex = Math.min(root.commandIndex + 1,
-                                                         root.filteredCommands.length - 1)
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Up) {
-                            root.commandIndex = Math.max(root.commandIndex - 1, 0)
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-                                || event.key === Qt.Key_Tab) {
-                            root.applyCommand(root.filteredCommands[root.commandIndex].name)
-                            event.accepted = true
-                            return
-                        }
-                        if (event.key === Qt.Key_Escape) {
+                TextArea {
+                    id: editor
+                    // 宽度跟随 ScrollView 可用宽度（已扣除滚动条），高度由内容撑开。
+                    width: editorScroll.availableWidth
+                    placeholderText: root.connected ? "Ask pi… 输入 / 使用命令" : "正在连接 Pi…"
+                    enabled: root.connected
+                    color: Theme.textBody
+                    placeholderTextColor: Theme.textFaint
+                    wrapMode: TextEdit.Wrap
+                    background: null
+                    leftPadding: 4
+                    rightPadding: 4
+                    topPadding: 2
+                    bottomPadding: 0
+                    font.pixelSize: 14
+                    selectByMouse: true
+                    // 原生渲染让输入与选中状态的字重、字形保持一致。
+                    renderType: TextEdit.NativeRendering
+
+                    onTextChanged: root.updateCommandPopup()
+                    onCursorPositionChanged: root.updateCommandPopup()
+                    onActiveFocusChanged: {
+                        if (!activeFocus)
                             root.commandPopupVisible = false
-                            event.accepted = true
-                            return
-                        }
                     }
-                    const isEnter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-                    const wantsNewLine = (event.modifiers & Qt.ShiftModifier) !== 0
-                    if (isEnter && !wantsNewLine) {
-                        root.submitCurrent((event.modifiers & Qt.AltModifier) !== 0)
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Escape && root.busy) {
-                        root.abortRequested()
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Up && (event.modifiers & Qt.AltModifier)) {
-                        root.retrieveRequested()
-                        event.accepted = true
+
+                    Keys.onPressed: event => {
+                        if (root.commandPopupVisible
+                                && (event.modifiers & Qt.AltModifier) === 0) {
+                            if (event.key === Qt.Key_Down) {
+                                root.commandIndex = Math.min(root.commandIndex + 1,
+                                                             root.filteredCommands.length - 1)
+                                event.accepted = true
+                                return
+                            }
+                            if (event.key === Qt.Key_Up) {
+                                root.commandIndex = Math.max(root.commandIndex - 1, 0)
+                                event.accepted = true
+                                return
+                            }
+                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+                                    || event.key === Qt.Key_Tab) {
+                                root.applyCommand(root.filteredCommands[root.commandIndex].name)
+                                event.accepted = true
+                                return
+                            }
+                            if (event.key === Qt.Key_Escape) {
+                                root.commandPopupVisible = false
+                                event.accepted = true
+                                return
+                            }
+                        }
+                        const isEnter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+                        const wantsNewLine = (event.modifiers & Qt.ShiftModifier) !== 0
+                        if (isEnter && !wantsNewLine) {
+                            root.submitCurrent((event.modifiers & Qt.AltModifier) !== 0)
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Escape && root.busy) {
+                            root.abortRequested()
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Up && (event.modifiers & Qt.AltModifier)) {
+                            root.retrieveRequested()
+                            event.accepted = true
+                        }
                     }
                 }
             }

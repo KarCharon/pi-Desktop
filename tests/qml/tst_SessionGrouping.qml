@@ -91,12 +91,13 @@ TestCase {
     function test_collapsedGroupsHaveNoGaps() {
         const list = findChild(sidebar, "recentSessions")
         sidebar.toggleFolder("p")
-        tryCompare(list, "contentHeight", 40)
+        // 项目行包含 36 像素标题与 8 像素组间距，目录和会话分别为 46、58。
+        tryCompare(list, "contentHeight", 44)
         compare(list.spacing, 0)
         sidebar.toggleFolder("p")
-        tryCompare(list, "contentHeight", 154)
+        tryCompare(list, "contentHeight", 148)
         sidebar.toggleFolder("f")
-        tryCompare(list, "contentHeight", 92)
+        tryCompare(list, "contentHeight", 90)
         compare(folderSpy.count, 0)
     }
 
@@ -105,11 +106,11 @@ TestCase {
         sidebar.toggleFolder("p")
         sidebar.searchQuery = "修复"
         const list = findChild(sidebar, "recentSessions")
-        tryCompare(list, "contentHeight", 154)
+        tryCompare(list, "contentHeight", 148)
         sidebar.searchQuery = "不存在"
         tryCompare(list, "contentHeight", 0)
         sidebar.searchQuery = ""
-        tryCompare(list, "contentHeight", 40)
+        tryCompare(list, "contentHeight", 44)
     }
 
     /** 点击目录传递真实路径；点击历史会话同时传递其工作目录。 */

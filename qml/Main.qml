@@ -182,7 +182,9 @@ ApplicationWindow {
     Dialog {
         id: settingsDialog
         anchors.centerIn: parent
-        width: Math.min(root.width - 80, 680)
+        width: Math.min(root.width - 80, 760)
+        // 高度跟随内容，但不超过窗口可用高度；超出部分交给内容区滚动。
+        height: Math.min(root.height - 120, implicitHeight)
         title: "Pi 连接设置"
         modal: true
         onOpened: {
@@ -218,114 +220,121 @@ ApplicationWindow {
             }
         }
 
-        ColumnLayout {
-            width: parent.width
-            spacing: 10
-            Label { text: "界面主题"; color: Theme.textBody }
-            RowLayout {
-                spacing: 8
-                Button {
-                    text: "浅色"
-                    // highlighted 只反映当前选择，点击后由绑定统一刷新两个按钮。
-                    highlighted: appController.settings.uiTheme !== "dark"
-                    onClicked: appController.settings.uiTheme = "light"
-                }
-                Button {
-                    text: "深色"
-                    highlighted: appController.settings.uiTheme === "dark"
-                    onClicked: appController.settings.uiTheme = "dark"
-                }
-            }
-            Label { text: "Pi 命令或可执行文件"; color: Theme.textBody }
-            RowLayout {
-                Layout.fillWidth: true
-                RemovablePathComboBox {
-                    id: piExecutableField
-                    optionKind: "Pi 程序选项"
-                    onRemovalConfirmed: path => settingsDialog.removeOption("executable", path, piExecutableField)
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    editable: true
-                    model: appController.settings.executablePaths
-                    Accessible.name: "Pi 命令或可执行文件，可选择或输入"
-                }
-                Button { text: "浏览"; onClicked: executableDialog.open() }
-            }
-            Label { text: "Agent 工作目录"; color: Theme.textBody }
-            RowLayout {
-                Layout.fillWidth: true
-                TextField { id: workspaceField; Layout.fillWidth: true; placeholderText: "项目目录" }
-                Button {
-                    text: "浏览"
-                    onClicked: {
-                        workspaceDialog.applyImmediately = false
-                        workspaceDialog.open()
+        // 设置项较多，窗口较矮时整体滚动，避免底部按钮被挤出屏幕。
+        ScrollView {
+            id: settingsScroll
+            anchors.fill: parent
+            contentWidth: availableWidth
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+            ColumnLayout {
+                width: settingsScroll.availableWidth
+                spacing: 10
+                Label { text: "界面主题"; color: Theme.textBody }
+                RowLayout {
+                    spacing: 8
+                    Button {
+                        text: "浅色"
+                        highlighted: appController.settings.uiTheme !== "dark"
+                        onClicked: appController.settings.uiTheme = "light"
+                    }
+                    Button {
+                        text: "深色"
+                        highlighted: appController.settings.uiTheme === "dark"
+                        onClicked: appController.settings.uiTheme = "dark"
                     }
                 }
-            }
-            Label { text: "后台 Pi 代理（HTTP / HTTPS）"; color: Theme.textBody }
-            TextField {
-                id: proxyField
-                Layout.fillWidth: true
-                placeholderText: "例如 http://127.0.0.1:7890；留空沿用环境"
-                Accessible.name: "后台 Pi 代理地址"
-                selectByMouse: true
-            }
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                color: Theme.textSecondary
-                text: "保存并重连后生效，不修改系统代理。保留 NO_PROXY 绕过规则；地址明文保存在本机，请勿填写敏感密码。"
-            }
-            Label { text: "Pi Profile 目录"; color: Theme.textBody }
-            RowLayout {
-                Layout.fillWidth: true
-                RemovablePathComboBox {
-                    id: profileField
-                    optionKind: "Profile 选项"
-                    onRemovalConfirmed: path => settingsDialog.removeOption("profile", path, profileField)
+                Label { text: "Pi 命令或可执行文件"; color: Theme.textBody }
+                RowLayout {
                     Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    editable: true
-                    model: appController.settings.profileDirectories
-                    Accessible.name: "Pi Profile 目录，可选择或输入"
+                    RemovablePathComboBox {
+                        id: piExecutableField
+                        optionKind: "Pi 程序选项"
+                        onRemovalConfirmed: path => settingsDialog.removeOption("executable", path, piExecutableField)
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        editable: true
+                        model: appController.settings.executablePaths
+                        Accessible.name: "Pi 命令或可执行文件，可选择或输入"
+                    }
+                    Button { text: "浏览"; onClicked: executableDialog.open() }
                 }
-                Button { text: "浏览"; onClicked: profileDialog.open() }
-            }
-            RowLayout {
-                Layout.fillWidth: true
+                Label { text: "Agent 工作目录"; color: Theme.textBody }
+                RowLayout {
+                    Layout.fillWidth: true
+                    TextField { id: workspaceField; Layout.fillWidth: true; placeholderText: "项目目录" }
+                    Button {
+                        text: "浏览"
+                        onClicked: {
+                            workspaceDialog.applyImmediately = false
+                            workspaceDialog.open()
+                        }
+                    }
+                }
+                Label { text: "后台 Pi 代理（HTTP / HTTPS）"; color: Theme.textBody }
+                TextField {
+                    id: proxyField
+                    Layout.fillWidth: true
+                    placeholderText: "例如 http://127.0.0.1:7890；留空沿用环境"
+                    Accessible.name: "后台 Pi 代理地址"
+                    selectByMouse: true
+                }
                 Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     color: Theme.textSecondary
-                    text: appController.settings.discoverySummary
+                    text: "保存并重连后生效，不修改系统代理。保留 NO_PROXY 绕过规则；地址明文保存在本机，请勿填写敏感密码。"
                 }
-                Button {
-                    text: "重新扫描"
-                    onClicked: {
-                        // 刷新模型可能重置编辑框，保留尚未保存的自定义草稿。
-                        const executable = piExecutableField.editText
-                        const profile = profileField.editText
-                        appController.settings.refreshDiscovery()
-                        piExecutableField.currentIndex = appController.settings.executablePaths.indexOf(executable)
-                        profileField.currentIndex = appController.settings.profileDirectories.indexOf(profile)
-                        piExecutableField.editText = executable
-                        profileField.editText = profile
+                Label { text: "Pi Profile 目录"; color: Theme.textBody }
+                RowLayout {
+                    Layout.fillWidth: true
+                    RemovablePathComboBox {
+                        id: profileField
+                        optionKind: "Profile 选项"
+                        onRemovalConfirmed: path => settingsDialog.removeOption("profile", path, profileField)
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        editable: true
+                        model: appController.settings.profileDirectories
+                        Accessible.name: "Pi Profile 目录，可选择或输入"
+                    }
+                    Button { text: "浏览"; onClicked: profileDialog.open() }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: Theme.textSecondary
+                        text: appController.settings.discoverySummary
+                    }
+                    Button {
+                        text: "重新扫描"
+                        onClicked: {
+                            // 刷新模型可能重置编辑框，保留尚未保存的自定义草稿。
+                            const executable = piExecutableField.editText
+                            const profile = profileField.editText
+                            appController.settings.refreshDiscovery()
+                            piExecutableField.currentIndex = appController.settings.executablePaths.indexOf(executable)
+                            profileField.currentIndex = appController.settings.profileDirectories.indexOf(profile)
+                            piExecutableField.editText = executable
+                            profileField.editText = profile
+                        }
                     }
                 }
-            }
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                color: Theme.accentText
-                text: "选择 Profile 本身的目录，而不是 sessions 子目录。保存后重连 Pi 并切换会话列表；不会复制或覆盖原 Profile 文件。"
-            }
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                color: Theme.danger
-                visible: text.length > 0
-                text: appController.agent.busy ? "请先停止当前任务，再保存连接设置。" : appController.settingsError
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    color: Theme.accentText
+                    text: "选择 Profile 本身的目录，而不是 sessions 子目录。保存后重连 Pi 并切换会话列表；不会复制或覆盖原 Profile 文件。"
+                }
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    color: Theme.danger
+                    visible: text.length > 0
+                    text: appController.agent.busy ? "请先停止当前任务，再保存连接设置。" : appController.settingsError
+                }
             }
         }
     }
@@ -333,12 +342,22 @@ ApplicationWindow {
     Popup {
         id: extensionDialog
         anchors.centerIn: parent
-        width: Math.min(root.width - 80, 560)
-        height: extensionContent.implicitHeight + 36
+        // 宽度放宽到 900，同时始终给窗口两侧留出 70 像素边距。
+        width: Math.min(root.width - 140, 900)
+        // 高度跟随内容，但不超过窗口可用高度，长文本在对话框内部消化。
+        height: Math.min(root.height - 140, extensionContent.implicitHeight + 36)
+        // 内边距归零，内容区完全由下方 18 像素外边距控制，避免样式默认 padding 造成高度溢出。
+        padding: 0
         modal: true
         focus: true
         closePolicy: Popup.NoAutoClose
         background: Rectangle { color: Theme.surface; border.color: Theme.borderStrong; radius: 12 }
+
+        // 标题最多两行，超长标题只省略不撑高，避免挤占输入区。
+        readonly property int titleMaxLines: 2
+        // 说明区高度上限：窗口越矮越早让步，保证输入区与按钮始终可见。
+        // 上限只依赖窗口高度，避免与弹窗自身高度构成绑定循环。
+        readonly property int messageMaxHeight: Math.max(56, Math.min(240, root.height - 348))
 
         ColumnLayout {
             id: extensionContent
@@ -352,13 +371,26 @@ ApplicationWindow {
                 font.pixelSize: 17
                 font.bold: true
                 wrapMode: Text.WordWrap
+                maximumLineCount: extensionDialog.titleMaxLines
+                elide: Text.ElideRight
             }
-            Label {
+            // 说明文本可能是长文档，放入可滚动区域并限制高度，避免把按钮顶出弹窗。
+            ScrollView {
+                id: extensionMessage
                 Layout.fillWidth: true
-                visible: text.length > 0
-                text: root.pendingExtensionRequest.message || ""
-                color: Theme.textSecondary
-                wrapMode: Text.WordWrap
+                Layout.maximumHeight: extensionDialog.messageMaxHeight
+                visible: extensionMessageLabel.text.length > 0
+                clip: true
+                contentWidth: availableWidth
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: contentHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                Label {
+                    id: extensionMessageLabel
+                    width: extensionMessage.availableWidth
+                    text: root.pendingExtensionRequest.message || ""
+                    color: Theme.textSecondary
+                    wrapMode: Text.WordWrap
+                }
             }
             ComboBox {
                 id: extensionSelect
@@ -369,11 +401,16 @@ ApplicationWindow {
             TextArea {
                 id: extensionInput
                 Layout.fillWidth: true
-                Layout.preferredHeight: root.pendingExtensionRequest.method === "editor" ? 180 : 54
+                // 输入区吃掉剩余高度：editor 默认 320 像素起，窗口越大越高，最小 80 保证仍可编辑。
+                Layout.fillHeight: true
+                Layout.minimumHeight: 80
+                Layout.preferredHeight: root.pendingExtensionRequest.method === "editor" ? 320 : 56
                 visible: root.pendingExtensionRequest.method === "input" || root.pendingExtensionRequest.method === "editor"
                 placeholderText: root.pendingExtensionRequest.placeholder || "请输入…"
                 wrapMode: TextEdit.Wrap
                 renderType: TextEdit.NativeRendering
+                selectByMouse: true
+                focus: visible
             }
             RowLayout {
                 Layout.alignment: Qt.AlignRight
@@ -409,7 +446,13 @@ ApplicationWindow {
         function onExtensionDialogRequested(request) {
             root.pendingExtensionRequest = request
             extensionInput.text = request.prefill || ""
+            // 预填后把光标放到末尾，避免长文本被全选误删。
+            extensionInput.cursorPosition = extensionInput.length
             extensionSelect.currentIndex = 0
+            console.info("[ExtensionDialog] 打开扩展对话；method=" + request.method
+                         + "；prefillLength=" + (request.prefill ? request.prefill.length : 0)
+                         + "；预分配尺寸=" + Math.round(extensionDialog.width)
+                         + "x" + Math.round(Math.min(root.height - 140, extensionContent.implicitHeight + 36)))
             extensionDialog.open()
         }
 

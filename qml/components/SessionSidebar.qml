@@ -6,7 +6,11 @@ import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 import QtQuick.Dialogs as Dialogs
 
-/** 保留暖色会话栏样式，以独立项目和真实工作文件夹组织会话。 */
+/**
+ * 保留暖色会话栏样式，以独立项目和真实工作文件夹组织会话。
+ * 层级视觉规则：项目 = 分组标题（深色加粗 + 分组底色 + 行前间距）；
+ * 文件夹 = 缩进 16 + 引导线；会话 = 缩进 34 + 引导线，正文色、选中加粗。
+ */
 Rectangle {
     id: root
     required property var model
@@ -202,13 +206,20 @@ Rectangle {
                 readonly property bool matches: root.rowVisible(modelData)
                 readonly property bool selected: isSession ? modelData.sessionPath === root.activeSessionPath
                                                           : isFolder && root.samePath(modelData.path, root.workspacePath)
+                // 项目行额外留出 8 像素上间距，让相邻项目的分组在视觉上断开。
+                readonly property int groupGap: modelData.kind === "project" ? 8 : 0
                 width: sessionList.width
-                height: matches ? (isSession ? 62 : isFolder ? 52 : 40) : 0
+                // 行高按层级区分：分组标题最矮（36）、文件夹 46、会话 58（含预览与时间）。
+                height: matches ? (isSession ? 58 : isFolder ? 46 : 36) + groupGap : 0
                 visible: matches
                 clip: true
                 radius: 9
-                color: selected ? Theme.rowSelected
-                     : entryMouse.containsMouse ? Theme.rowHover : "transparent"
+                // 项目行使用独立分组底色；选中态在文件夹与会话行上略微区分深浅。
+                color: entry.isFolder && entry.selected ? Theme.rowFolderSelected
+                     : entry.isSession && entry.selected ? Theme.rowSelected
+                     : entryMouse.containsMouse ? Theme.rowHover
+                     : entry.modelData.kind === "project" ? Theme.rowProjectBg
+                     : "transparent"
 
                 MouseArea {
                     id: entryMouse
@@ -225,9 +236,29 @@ Rectangle {
                     }
                 }
 
+                // 层级引导线：文件夹一级落在 x=10，会话一级落在 x=28，形成可见的树状从属关系。
+                Rectangle {
+                    visible: entry.isFolder || entry.isSession
+                    x: entry.isFolder ? 10 : 28
+                    width: 1
+                    height: entry.height - entry.groupGap
+                    color: entry.isFolder ? Theme.rowFolderGuide : Theme.rowSessionGuide
+                }
+                // 当前工作目录额外用左侧强调色条标记，不只靠底色深浅区分。
+                Rectangle {
+                    visible: entry.isFolder && entry.selected
+                    x: 0
+                    width: 3
+                    height: entry.height - entry.groupGap
+                    radius: 1.5
+                    color: Theme.accentHover
+                }
+
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: entry.isSession ? 30 : entry.isFolder ? 12 : 0
+                    anchors.topMargin: entry.groupGap
+                    // 缩进按层级递增：项目 2、文件夹 16、会话 34。
+                    anchors.leftMargin: entry.isSession ? 34 : entry.isFolder ? 16 : 2
                     anchors.rightMargin: 4
                     spacing: 5
                     SidebarButton {
@@ -242,9 +273,12 @@ Rectangle {
                         Label {
                             Layout.fillWidth: true
                             text: entry.modelData.title
-                            color: entry.isSession ? Theme.textBody : Theme.rowFolderInk
-                            font.pixelSize: entry.isSession ? 13 : 12
-                            font.bold: entry.selected || !entry.isSession && !entry.isFolder
+                            // 项目 = 深色加粗分组标题；文件夹 = 中性色；会话 = 正文色，选中加粗。
+                            color: entry.isSession ? (entry.selected ? Theme.textTitle : Theme.textBody)
+                                 : entry.isFolder ? Theme.rowFolderInk : Theme.textPrimary
+                            font.pixelSize: 12
+                            font.bold: entry.isSession ? entry.selected : !entry.isFolder
+                            font.letterSpacing: entry.isSession || entry.isFolder ? 0 : 0.3
                             elide: Text.ElideRight
                         }
                         Label {

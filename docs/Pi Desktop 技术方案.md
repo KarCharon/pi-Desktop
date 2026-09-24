@@ -862,6 +862,13 @@ Output:
 
 这样可以避免聊天界面被 Tool Output 完全占据。
 
+展开区的实现约定：
+
+- Input / Output 用 `TextArea` 包 `ScrollView`。`TextArea` 不是 `Flickable`（`QQuickTextEdit` 的基类是 `QQuickImplicitSizeItem`），直接挂 `ScrollBar` 会被判定非法，也不会真正滚动。
+- 框高绑定 `min(上限, max(48, contentHeight + 14))`：Input 上限 180、Output 上限 260，超过上限由滚动条查看。
+- 覆盖 `ScrollView` 自带的滚动条时必须自行补 `parent` / `x` / `y` / `height` 绑定（样式里就是手写的），否则滑条会落在左上角且拖不动。
+- 同一个坑也适用于右侧 Context Panel；Conversation 与会话栗用的是 `ListView`（`Flickable`），附加滚动条由 `Flickable` 自动定位，不需要手写绑定。
+
 ---
 
 # 19. Markdown 渲染
@@ -972,25 +979,22 @@ Interactive HTML
 
 左侧应该设计一个 Session Sidebar。
 
+层级实际实现为三级：项目 → 工作文件夹 → 会话（未归入项目的会话放在“未分组”）。
+
 例如：
 
 ```text
-Workspace
-
-ProjectA
-
-    Session 1
-
-    Session 2
-
-    Debug Memory Leak
-
-ProjectB
-
-    Refactor Scheduler
-
-    Bug Analysis
+项目 A                  （分组标题：36 px、加粗、分组底色、组前 8 px 间距）
+    └ 工作文件夹 1       （46 px、缩进 16 px、显示路径、左侧引导线）
+        └ 会话 1         （58 px、缩进 34 px、显示预览与更新时间、左侧引导线）
+        └ 会话 2
+    └ 工作文件夹 2
+项目 B
+    └ 工作文件夹 3
+        └ 调试内存泄漏
 ```
+
+层级区分手段：行高、缩进、标题字重与色调、左侧 1 px 引导线；当前工作文件夹额外用左侧 3 px 强调色条标记。搜索命中时只显示匹配行及其祖先。
 
 对应：
 

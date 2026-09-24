@@ -25,11 +25,19 @@ Rectangle {
     border.color: Theme.borderSoft
 
     ScrollView {
+        id: panelScroll
         anchors.fill: parent
         clip: true
         // 面板只允许纵向滚动，避免窄窗口产生额外的原生横向滚动条。
         contentWidth: root.width
-        ScrollBar.vertical: WorkspaceScrollBar {}
+        // ScrollView 样式自带的滚动条靠 parent/x/y/height 手动定位，覆盖时必须补上，
+        // 否则滑条会落在左上角且拖不动。
+        ScrollBar.vertical: WorkspaceScrollBar {
+            parent: panelScroll
+            x: panelScroll.mirrored ? 0 : panelScroll.width - width
+            y: panelScroll.topPadding
+            height: panelScroll.availableHeight
+        }
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
         ColumnLayout {
