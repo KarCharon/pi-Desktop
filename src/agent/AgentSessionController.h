@@ -53,6 +53,8 @@ public:
     [[nodiscard]] QString sessionFile() const;
     /** 返回当前模型名称。 */
     [[nodiscard]] QString modelName() const;
+    /** 返回 RPC 确认的 provider，余额功能不解析模型展示名称。 */
+    QString currentProvider() const { return m_currentProvider; }
     /** 返回当前思考等级，未获取时返回空字符串。 */
     [[nodiscard]] QString thinkingLevel() const;
     /** 返回当前随机英文工作提示，忙碌期间每十秒切换。 */
@@ -137,6 +139,8 @@ signals:
     void sessionChanged();
     /** 当前模型名称变化。 */
     void modelNameChanged();
+    /** 实时响应完成：provider 为提供方，source 为内部事件类型，不含聊天内容。 */
+    void modelResponseCompleted(const QString &provider, const QString &source);
     /** 当前思考等级变化。 */
     void thinkingLevelChanged();
     /** 英文工作提示变化。 */

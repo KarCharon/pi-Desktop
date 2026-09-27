@@ -34,6 +34,8 @@ Qt 不直接连接 OpenAI、Claude 或其他模型。
 
 Qt 只连接 Pi。
 
+<p align="center">余额查询例外：桌面端可以直接查询 DeepSeek 官方 /user/balance 管理接口，但不直接发起模型推理。该功能仅在当前 provider 为 deepseek 时启用，使用当前 Profile 的密钥并强制直连；其网络、超时和失败状态独立于 Pi 模型请求，不能影响聊天。详见《DeepSeek 余额显示方案》。</p>
+
 ---
 
 # 2. 技术栈

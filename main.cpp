@@ -173,6 +173,9 @@ int main(int argc, char *argv[])
         applyUiTheme(appController.settings()->uiTheme());
     });
     applyUiTheme(appController.settings()->uiTheme());
+    // 只允许访问后端持有的余额服务，QML 不能创建额外网络控制器。
+    qmlRegisterUncreatableType<DeepSeekBalanceController>("PiDesktop", 1, 0,
+        "DeepSeekBalanceController", QStringLiteral("由 AppController 管理"));
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appController"), &appController);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,

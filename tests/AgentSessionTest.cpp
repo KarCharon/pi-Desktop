@@ -280,7 +280,7 @@ private slots:
             settings.setPiProfilePath(config.path());
             settings.setWorkspacePath(first.path());
         }
-        AppController app;
+        AppController app(nullptr, false);
         QTRY_VERIFY(app.agent()->connected());
         QCOMPARE(app.agent()->sessionName(), first.path());
         QVERIFY(app.openWorkspace(second.path()));
@@ -341,7 +341,7 @@ private slots:
             settings.setPiProfilePath(config.path());
             settings.setWorkspacePath(first.path());
         }
-        AppController app;
+        AppController app(nullptr, false);
         QTRY_VERIFY(app.agent()->connected());
         QVERIFY(app.projects()->saveProject("", "添加即切换"));
         const QString project = app.projects()->rows()[0].toMap().value("id").toString();
@@ -505,6 +505,28 @@ private slots:
 
         process.stop();
         QTRY_VERIFY(!process.active());
+    }
+
+    /** 余额触发只跟随实时 assistant 完成和压缩，不跟随 token 或工具消息。 */
+    void balanceRefreshEvents()
+    {
+        PiProcess process;
+        PiRpcClient rpc(&process);
+        ChatModel model;
+        AgentSessionController agent(&process, &rpc, &model);
+        QSignalSpy completed(&agent, &AgentSessionController::modelResponseCompleted);
+        rpc.eventReceived(PiEvent(QJsonObject{{"type", "message_update"},
+            {"assistantMessageEvent", QJsonObject{{"type", "text_delta"}, {"delta", "hello"}}}}));
+        rpc.eventReceived(PiEvent(QJsonObject{{"type", "message_end"},
+            {"message", QJsonObject{{"role", "toolResult"}, {"content", QJsonArray{}}}}}));
+        QCOMPARE(completed.size(), 0);
+        for (int i = 0; i < 2; ++i)
+            rpc.eventReceived(PiEvent(QJsonObject{{"type", "message_end"},
+                {"message", QJsonObject{{"role", "assistant"}, {"provider", "deepseek"}, {"content", QJsonArray{}}}}}));
+        QCOMPARE(completed.size(), 2);
+        QCOMPARE(completed.first().first().toString(), "deepseek");
+        rpc.eventReceived(PiEvent(QJsonObject{{"type", "compaction_end"}}));
+        QCOMPARE(completed.size(), 3);
     }
 
     /** 空内容错误不能被当作纯工具消息移除，历史错误也必须保留详情。 */

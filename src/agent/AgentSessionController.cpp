@@ -398,6 +398,8 @@ void AgentSessionController::handleEvent(const PiEvent &event)
                 qCWarning(agentControllerLog) << "[AgentSession] assistant failed:" << detail;
             }
             m_chatModel->finishAssistant(text, failed);
+            emit modelResponseCompleted(message.value(QStringLiteral("provider")).toString(m_currentProvider),
+                                        QStringLiteral("assistant_message_end"));
         }
     } else if (type == QStringLiteral("tool_execution_start")) {
         const QString input = QString::fromUtf8(
@@ -441,6 +443,7 @@ void AgentSessionController::handleEvent(const PiEvent &event)
         m_chatModel->appendSystemMessage(m_statusText);
         qCInfo(agentControllerLog) << "[AgentCompaction] started; reason=" << payload.value(QStringLiteral("reason"));
     } else if (type == QStringLiteral("compaction_end")) {
+        emit modelResponseCompleted(m_currentProvider, QStringLiteral("compaction_end"));
         if (!payload.value(QStringLiteral("errorMessage")).toString().isEmpty())
             reportRuntimeError(tr("上下文压缩失败：%1").arg(payload.value(QStringLiteral("errorMessage")).toString()));
         else {

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620">
+  <title>DeepSeek 余额减少动画分镜</title>
+  <desc>余额从 💵 ¥110.00 降到 💵 ¥109.98，红色减额从余额上方向上浮动并渐隐；余额本身保持稳定。</desc>
+  <rect width="1200" height="620" fill="#171513"/>
+  <g font-family="Microsoft YaHei, sans-serif" text-anchor="middle">
+    <text x="600" y="48" fill="#eee7dc" font-size="26">余额扣减 = 游戏掉血浮字</text>
+    <text x="600" y="80" fill="#aaa49a" font-size="15">数字更新后，💸 -¥0.02 从余额上方升起，上浮约 64 px，约 5 秒后消失</text>
+    <g fill="#211e1b" stroke="#494139">
+      <rect x="30" y="118" width="550" height="180" rx="12"/>
+      <rect x="620" y="118" width="550" height="180" rx="12"/>
+      <rect x="30" y="326" width="550" height="180" rx="12"/>
+      <rect x="620" y="326" width="550" height="180" rx="12"/>
+    </g>
+    <g fill="#aaa49a" font-size="15">
+      <text x="305" y="147">① 查询前 · 原余额</text>
+      <text x="895" y="147">② 0 ms · 更新余额，红字出现</text>
+      <text x="305" y="355">③ 3500 ms · 上浮并渐隐</text>
+      <text x="895" y="355">④ 5000 ms · 红字消失，余额保留</text>
+    </g>
+    <g fill="#191715">
+      <rect x="45" y="249" width="520" height="34" rx="5"/>
+      <rect x="635" y="249" width="520" height="34" rx="5"/>
+      <rect x="45" y="457" width="520" height="34" rx="5"/>
+      <rect x="635" y="457" width="520" height="34" rx="5"/>
+    </g>
+    <g fill="#aaa49a" font-size="13" text-anchor="start">
+      <text x="60" y="271">● 已连接　Profile: Desktop</text>
+      <text x="650" y="271">● 已连接　Profile: Desktop</text>
+      <text x="60" y="479">● 已连接　Profile: Desktop</text>
+      <text x="650" y="479">● 已连接　Profile: Desktop</text>
+    </g>
+    <g fill="#eee7dc" font-size="15" text-anchor="end">
+      <text x="550" y="271">DeepSeek: 💵 ¥110.00</text>
+      <text x="1140" y="271">DeepSeek: 💵 ¥109.98</text>
+      <text x="550" y="479">DeepSeek: 💵 ¥109.98</text>
+      <text x="1140" y="479">DeepSeek: 💵 ¥109.98</text>
+    </g>
+    <text x="1060" y="236" fill="#ef7777" font-size="15" font-weight="bold">💸 -¥0.02</text>
+    <text x="470" y="404" fill="#ef7777" opacity="0.48" font-size="15" font-weight="bold">💸 -¥0.02</text>
+    <path d="M 550 440 L 550 405 M 544 412 L 550 404 L 556 412" fill="none" stroke="#ef7777" opacity="0.55" stroke-width="2"/>
+    <text x="600" y="551" fill="#eee7dc" font-size="17">只有同一账户、同一币种的实测余额减少才播放；首次读取、失败、充值不播放</text>
+    <text x="600" y="582" fill="#aaa49a" font-size="15">浮字覆盖在输入区域上方，不挤动状态栏，不拦截鼠标；表示账户余额变化，并非本次请求精确费用</text>
+  </g>
+</svg>

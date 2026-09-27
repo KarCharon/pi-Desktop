@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.11 REQUIRED COMPONENTS Core Concurrent Gui Qml Quick QuickControls2)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Core Concurrent Gui Qml Quick QuickControls2 Network)
 
 qt_standard_project_setup()
 qt_policy(SET QTP0001 NEW)
@@ -24,6 +24,8 @@ qt_add_executable(pi_Desktop
     src/chat/ChatModel.cpp
     src/config/AppSettings.h
     src/config/AppSettings.cpp
+    src/config/DeepSeekBalanceController.h
+    src/config/DeepSeekBalanceController.cpp
     src/pi/PiEvent.h
     src/pi/PiEvent.cpp
     src/pi/PiProcess.h
@@ -53,7 +55,7 @@ endif()
 set_source_files_properties(qml/Main.qml PROPERTIES QT_RESOURCE_ALIAS Main.qml)
 set_source_files_properties(qml/pages/ChatPage.qml PROPERTIES QT_RESOURCE_ALIAS pages/ChatPage.qml)
 foreach(component
-        ChatView UserMessage AssistantMessage SystemMessage ToolCall PromptEditor SessionSidebar ContextPanel WorkspaceScrollBar WorkingIndicator RemovablePathComboBox)
+        ChatView UserMessage AssistantMessage SystemMessage ToolCall PromptEditor SessionSidebar ContextPanel WorkspaceScrollBar WorkingIndicator RemovablePathComboBox DeepSeekBalance)
     set_source_files_properties(qml/components/${component}.qml
         PROPERTIES QT_RESOURCE_ALIAS components/${component}.qml)
 endforeach()
@@ -69,6 +71,7 @@ qt_add_qml_module(pi_Desktop
         qml/Main.qml
         qml/pages/ChatPage.qml
         qml/components/Theme.qml
+        qml/components/DeepSeekBalance.qml
         qml/components/ChatView.qml
         qml/components/WorkspaceScrollBar.qml
         qml/components/WorkingIndicator.qml
@@ -85,6 +88,7 @@ qt_add_qml_module(pi_Desktop
 target_link_libraries(pi_Desktop
     PRIVATE
         Qt6::Core
+        Qt6::Network
         Qt6::Concurrent
         Qt6::Gui
         Qt6::Qml
@@ -158,6 +162,7 @@ if(BUILD_TESTING)
         tests/AgentSessionTest.cpp
         src/app/AppController.h src/app/AppController.cpp
         src/config/AppSettings.h src/config/AppSettings.cpp
+        src/config/DeepSeekBalanceController.h src/config/DeepSeekBalanceController.cpp
         src/session/SessionModel.h src/session/SessionModel.cpp
         src/session/ProjectModel.h src/session/ProjectModel.cpp
         src/agent/AgentSessionController.h src/agent/AgentSessionController.cpp
@@ -166,8 +171,15 @@ if(BUILD_TESTING)
         src/pi/PiProcess.h src/pi/PiProcess.cpp
         src/pi/PiRpcClient.h src/pi/PiRpcClient.cpp)
     target_include_directories(pi_agent_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(pi_agent_tests PRIVATE Qt6::Core Qt6::Concurrent Qt6::Test)
+    target_link_libraries(pi_agent_tests PRIVATE Qt6::Core Qt6::Concurrent Qt6::Test Qt6::Network)
     add_test(NAME agent_session COMMAND pi_agent_tests)
+
+    # 余额测试使用临时凭据与内存 reply，不访问真实账户或外网。
+    qt_add_executable(pi_balance_tests tests/DeepSeekBalanceTest.cpp
+        src/config/DeepSeekBalanceController.h src/config/DeepSeekBalanceController.cpp)
+    target_include_directories(pi_balance_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(pi_balance_tests PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+    add_test(NAME deepseek_balance COMMAND pi_balance_tests)
 
     # 使用 Qt 自带运行器验证滑块状态和实际鼠标拖动，无需启动 Agent。
     find_program(QMLTESTRUNNER_EXECUTABLE NAMES qmltestrunner
@@ -180,7 +192,7 @@ if(BUILD_TESTING)
                 -o "${CMAKE_CURRENT_BINARY_DIR}/workspace-scrollbar-tests.txt,txt")
     endif()
     if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.22)
-        set_tests_properties(chat_model agent_session project_model PROPERTIES
+        set_tests_properties(chat_model agent_session project_model deepseek_balance PROPERTIES
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     endif()
 endif()

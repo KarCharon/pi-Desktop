@@ -147,6 +147,15 @@ ApplicationWindow {
                 color: Theme.textFaint
                 font.pixelSize: 10
             }
+            DeepSeekBalance {
+                controller: appController.balance
+                // 内容覆盖层不参与布局，位于弹窗 Overlay 下方且不受 footer 裁剪。
+                floatLayer: root.contentItem
+                warning: appController.balance.state === DeepSeekBalanceController.Error
+                      || (appController.balance.state === DeepSeekBalanceController.Ready
+                          && !appController.balance.isAvailable)
+                Layout.maximumWidth: 320
+            }
         }
     }
 

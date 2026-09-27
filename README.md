@@ -91,6 +91,14 @@ PI_CODING_AGENT_SESSION_DIR=%USERPROFILE%/.pi/profiles/Desktop/sessions
 
 为避免长会话卡顿，Session 元数据在 `QtConcurrent` 工作线程扫描，单文件仅读取头尾区域，并按文件大小和修改时间复用增量缓存。Assistant 和 Tool 流式更新也会合并后再通知 QML，折叠的 Tool Output 不创建文本渲染组件。
 
+## DeepSeek 官方账户余额
+
+<p align="center">当前已确认模型的 provider 为 deepseek 时，底部显示余额（例如 💵 ¥110.00）。只读取当前 Profile/auth.json 的 deepseek 项（type=api_key、key 为直接密钥字符串），不回退环境变量或其他 Profile。余额查询始终直连，不使用模型调用代理；失败仅显示“余额获取失败”，不影响聊天。</p>
+
+<p align="center">首次启用时查询一次，此后每 5 分钟刷新，保留手动点击；模型响应及压缩结束不再触发查询。单次总超时 1 秒；暂时错误最多重试 3 次，429 遵守冷却。突发刷新会合并；扣减浮字持续 5 秒，上浮 64 px，前 2 秒保持清晰、后 3 秒渐隐。</p>
+
+<p align="center">同一账户实测余额减少时显示红色 💸 -¥0.02 浮字，与余额字号一致，约 1 秒向上飘动并渐隐。此值是账户余额变化，不是单次请求精确费用；首次查询、充值和查询失败不播放动画。切换账户或非 DeepSeek 模型立即清除旧余额与浮字。</p>
+
 ## Windows 文件夹右键启动
 
 在发布目录的 `bin` 中双击 `install-folder-menu.cmd`，即可为当前用户安装“在 Pi Desktop 中打开”菜单，无需管理员权限。支持文件夹空白处及文件夹本身的右键；Windows 11 可能需要先点“显示更多选项”。双击 `uninstall-folder-menu.cmd` 可移除菜单。移动程序后需在新位置重新安装菜单，删除程序前建议先卸载菜单。

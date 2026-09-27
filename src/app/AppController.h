@@ -3,6 +3,7 @@
 #include "agent/AgentSessionController.h"
 #include "chat/ChatModel.h"
 #include "config/AppSettings.h"
+#include "config/DeepSeekBalanceController.h"
 #include "session/SessionModel.h"
 #include "session/ProjectModel.h"
 
@@ -22,6 +23,8 @@ class AppController final : public QObject
     Q_PROPERTY(SessionModel *sessionModel READ sessionModel CONSTANT)
     Q_PROPERTY(AgentSessionController *agent READ agent CONSTANT)
     Q_PROPERTY(AppSettings *settings READ settings CONSTANT)
+    /** 当前官方 DeepSeek 余额及查询状态。 */
+    Q_PROPERTY(DeepSeekBalanceController *balance READ balance CONSTANT)
     Q_PROPERTY(QString settingsError MEMBER m_settingsError NOTIFY settingsErrorChanged)
     Q_PROPERTY(ProjectModel *projects READ projects CONSTANT)
     Q_PROPERTY(bool workspaceSwitching READ workspaceSwitching NOTIFY workspaceNavigationChanged)
@@ -31,7 +34,7 @@ public:
     /**
      * 创建并连接 Pi Desktop 的全部后端组件。
      */
-    explicit AppController(QObject *parent = nullptr);
+    explicit AppController(QObject *parent = nullptr, bool balanceEnabled = true);
 
     /**
      * 停止仍在运行的 Pi 子进程。
@@ -44,6 +47,8 @@ public:
     [[nodiscard]] SessionModel *sessionModel() const;
     /** 返回当前 Agent 控制器。 */
     [[nodiscard]] AgentSessionController *agent() const;
+    /** 返回独立余额控制器，不向 QML 暴露认证数据。 */
+    DeepSeekBalanceController *balance() const { return m_balance; }
     /** 返回应用配置。 */
     [[nodiscard]] AppSettings *settings() const;
 
@@ -81,6 +86,11 @@ private:
      */
     void startPi();
 
+    /** 根据已确认连接和模型同步余额上下文。 */
+    void updateBalanceContext();
+
+    DeepSeekBalanceController *m_balance; ///< 官方账户余额服务。
+    bool m_balanceEnabled; ///< 测试可显式禁用，避免读取真实凭据。
     AppSettings *m_settings;
     ChatModel *m_chatModel;
     SessionModel *m_sessionModel;

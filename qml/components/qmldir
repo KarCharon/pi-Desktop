@@ -13,3 +13,4 @@ ToolCall 1.0 ToolCall.qml
 PromptEditor 1.0 PromptEditor.qml
 SessionSidebar 1.0 SessionSidebar.qml
 ContextPanel 1.0 ContextPanel.qml
+DeepSeekBalance 1.0 DeepSeekBalance.qml

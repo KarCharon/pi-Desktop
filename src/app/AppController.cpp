@@ -21,8 +21,10 @@ Q_LOGGING_CATEGORY(appControllerLog, "pidesktop.app")
 /**
  * 按 Process → RPC → Controller → Model 的依赖顺序组装应用。
  */
-AppController::AppController(QObject *parent)
+AppController::AppController(QObject *parent, bool balanceEnabled)
     : QObject(parent)
+    , m_balance(new DeepSeekBalanceController(this, {}, balanceEnabled))
+    , m_balanceEnabled(balanceEnabled)
     , m_settings(new AppSettings(this))
     , m_chatModel(new ChatModel(this))
     , m_sessionModel(new SessionModel(this))
@@ -31,6 +33,17 @@ AppController::AppController(QObject *parent)
     , m_rpcClient(new PiRpcClient(m_process, this))
     , m_agent(new AgentSessionController(m_process, m_rpcClient, m_chatModel, this))
 {
+    connect(m_agent, &AgentSessionController::connectedChanged, this, &AppController::updateBalanceContext);
+    connect(m_agent, &AgentSessionController::modelNameChanged, this, &AppController::updateBalanceContext);
+    // Profile 修改先使旧请求失效，重连确认模型后才启用新账户。
+    connect(m_settings, &AppSettings::piProfilePathChanged, this, [this] {
+        m_balance->setContext(m_settings->piProfilePath(), false);
+    });
+    // 转发脱敏的匹配结果与内部事件名，让日志也覆盖被禁用或模型不匹配的情况。
+    connect(m_agent, &AgentSessionController::modelResponseCompleted, this,
+            [this](const QString &provider, const QString &source) {
+        m_balance->modelResponseCompleted(provider == QStringLiteral("deepseek"), source);
+    });
     connect(m_agent, &AgentSessionController::sessionsChanged,
             m_sessionModel, &SessionModel::refresh);
     connect(m_process, &PiProcess::processExited, this, [this] {
@@ -93,6 +106,13 @@ AppController::AppController(QObject *parent)
 AppController::~AppController()
 {
     m_process->stop();
+}
+
+/** 仅在当前连接已经确认模型时启用余额查询。 */
+void AppController::updateBalanceContext()
+{
+    m_balance->setContext(m_settings->piProfilePath(), m_balanceEnabled && m_agent->connected()
+                         && m_agent->currentProvider() == QStringLiteral("deepseek"));
 }
 
 /**
@@ -263,6 +283,7 @@ bool AppController::openWorkspace(const QString &path, const QString &sessionFil
  */
 void AppController::restartPi()
 {
+    m_balance->setContext(m_settings->piProfilePath(), false);
     if (m_process->active()) {
         const QString session = m_startupSession;
         m_agent->prepareWorkspaceSwitch();
