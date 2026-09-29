@@ -15,6 +15,13 @@ class AppSettings final : public QObject
     Q_PROPERTY(QString piProfilePath READ piProfilePath WRITE setPiProfilePath NOTIFY piProfilePathChanged)
     Q_PROPERTY(QString proxyUrl READ proxyUrl WRITE setProxyUrl NOTIFY proxyUrlChanged)
     Q_PROPERTY(QString uiTheme READ uiTheme WRITE setUiTheme NOTIFY uiThemeChanged)
+    Q_PROPERTY(bool petEnabled READ petEnabled WRITE setPetEnabled NOTIFY petEnabledChanged)
+    Q_PROPERTY(int petSize READ petSize WRITE setPetSize NOTIFY petSizeChanged)
+    Q_PROPERTY(int petPositionX READ petPositionX WRITE setPetPositionX NOTIFY petPositionChanged)
+    Q_PROPERTY(int petPositionY READ petPositionY WRITE setPetPositionY NOTIFY petPositionChanged)
+    Q_PROPERTY(bool petFollowWorkStatus READ petFollowWorkStatus WRITE setPetFollowWorkStatus NOTIFY petFollowWorkStatusChanged)
+    Q_PROPERTY(bool petFollowBalance READ petFollowBalance WRITE setPetFollowBalance NOTIFY petFollowBalanceChanged)
+    Q_PROPERTY(QString petRuntimePath READ petRuntimePath WRITE setPetRuntimePath NOTIFY petRuntimePathChanged)
     Q_PROPERTY(QStringList profileDirectories READ profileDirectories NOTIFY discoveryChanged)
     Q_PROPERTY(QStringList executablePaths READ executablePaths NOTIFY discoveryChanged)
     Q_PROPERTY(QString discoverySummary READ discoverySummary NOTIFY discoveryChanged)
@@ -66,6 +73,35 @@ public:
     /** 判断主题名是否表示深色，供主程序与界面共用。 */
     static bool isDarkTheme(const QString &value);
 
+    /** 返回桌宠是否允许随应用启动。 */
+    bool petEnabled() const;
+    /** 保存桌宠启用意愿。 */
+    void setPetEnabled(bool enabled);
+    /** 返回桌宠窗口大小。 */
+    int petSize() const;
+    /** 保存并限制桌宠窗口大小。 */
+    void setPetSize(int size);
+    /** 返回桌宠初始横坐标。 */
+    int petPositionX() const;
+    /** 保存桌宠初始横坐标。 */
+    void setPetPositionX(int value);
+    /** 返回桌宠初始纵坐标。 */
+    int petPositionY() const;
+    /** 保存桌宠初始纵坐标。 */
+    void setPetPositionY(int value);
+    /** 返回是否同步 Agent 工作状态。 */
+    bool petFollowWorkStatus() const;
+    /** 保存工作状态联动开关。 */
+    void setPetFollowWorkStatus(bool enabled);
+    /** 返回是否同步余额快照。 */
+    bool petFollowBalance() const;
+    /** 保存余额联动开关。 */
+    void setPetFollowBalance(bool enabled);
+    /** 返回桌宠运行包目录。 */
+    QString petRuntimePath() const;
+    /** 保存桌宠运行包目录。 */
+    void setPetRuntimePath(const QString &path);
+
     /** 返回自动发现的 Profile 目录列表。 */
     QStringList profileDirectories() const;
     /** 返回自动发现的 Pi 程序路径列表。 */
@@ -86,6 +122,18 @@ signals:
     void proxyUrlChanged();
     /** 界面主题发生变化，用于同步应用调色板与系统配色方案。 */
     void uiThemeChanged();
+    /** 桌宠启用意愿发生变化。 */
+    void petEnabledChanged();
+    /** 桌宠大小发生变化。 */
+    void petSizeChanged();
+    /** 桌宠位置发生变化。 */
+    void petPositionChanged();
+    /** 工作状态联动开关发生变化。 */
+    void petFollowWorkStatusChanged();
+    /** 余额联动开关发生变化。 */
+    void petFollowBalanceChanged();
+    /** 桌宠运行包目录发生变化。 */
+    void petRuntimePathChanged();
     /** 自动发现结果已更新。 */
     void discoveryChanged();
     /** 候选删除错误状态已更新。 */

@@ -32,6 +32,7 @@ AppController::AppController(QObject *parent, bool balanceEnabled)
     , m_process(new PiProcess(this))
     , m_rpcClient(new PiRpcClient(m_process, this))
     , m_agent(new AgentSessionController(m_process, m_rpcClient, m_chatModel, this))
+    , m_pet(new PetController(m_agent, m_balance, m_settings, this))
 {
     connect(m_agent, &AgentSessionController::connectedChanged, this, &AppController::updateBalanceContext);
     connect(m_agent, &AgentSessionController::modelNameChanged, this, &AppController::updateBalanceContext);
@@ -114,6 +115,7 @@ AppController::AppController(QObject *parent, bool balanceEnabled)
  */
 AppController::~AppController()
 {
+    m_pet->stop();
     m_process->stop();
 }
 
@@ -132,8 +134,16 @@ void AppController::syncTokenUsageProfiles()
 /** 仅在当前连接已经确认模型时启用余额查询。 */
 void AppController::updateBalanceContext()
 {
-    m_balance->setContext(m_settings->piProfilePath(), m_balanceEnabled && m_agent->connected()
-                         && m_agent->currentProvider() == QStringLiteral("deepseek"));
+    const bool connected = m_agent->connected();
+    const bool deepseek = m_agent->currentProvider() == QStringLiteral("deepseek");
+    const bool enabled = m_balanceEnabled && connected && deepseek;
+    m_balance->setContext(m_settings->piProfilePath(), enabled);
+    if (!m_balanceEnabled)
+        m_balance->setUnavailableReason(QStringLiteral("disabled"));
+    else if (!connected)
+        m_balance->setUnavailableReason(QStringLiteral("not_connected"));
+    else if (!deepseek)
+        m_balance->setUnavailableReason(QStringLiteral("provider_unsupported"));
 }
 
 /**

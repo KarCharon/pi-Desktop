@@ -173,6 +173,8 @@ void DeepSeekBalanceController::setContext(const QString &profile, bool enabled)
     m_available = false;
     m_notBefore = 0;
     m_state = enabled ? Loading : Disabled;
+    m_reason = enabled ? QStringLiteral("loading") : QStringLiteral("disabled");
+    m_updatedAt = {};
     m_text = enabled ? tr("DeepSeek: 获取余额…") : QString();
     m_status.clear();
     emit contextReset();
@@ -181,6 +183,40 @@ void DeepSeekBalanceController::setContext(const QString &profile, bool enabled)
         m_poll.start();
         requestRefresh(QStringLiteral("context_enabled"));
     }
+}
+
+/** 设置未启用状态的脱敏原因，不读取凭据也不触发请求。 */
+void DeepSeekBalanceController::setUnavailableReason(const QString &reason)
+{
+    if (m_enabled || m_reason == reason)
+        return;
+    m_reason = reason;
+    m_status = reason == QStringLiteral("provider_unsupported") ? tr("当前模型不支持余额查询")
+        : reason == QStringLiteral("not_connected") ? tr("Pi 尚未连接")
+        : reason == QStringLiteral("disabled") ? tr("余额查询已关闭") : tr("余额暂不可用");
+    m_updatedAt = QDateTime::currentDateTime();
+    emit changed();
+}
+
+/** 返回不含密钥的结构化余额快照。 */
+QVariantMap DeepSeekBalanceController::snapshot() const
+{
+    QVariantMap values;
+    QVariantMap balances;
+    for (auto it = m_balances.cbegin(); it != m_balances.cend(); ++it)
+        balances.insert(it.key(), it.value());
+    const QString stateName = m_state == Disabled ? QStringLiteral("disabled")
+        : m_state == Loading ? QStringLiteral("loading")
+        : m_state == Ready ? QStringLiteral("ready") : QStringLiteral("error");
+    values.insert(QStringLiteral("state"), stateName);
+    values.insert(QStringLiteral("available"), m_available);
+    values.insert(QStringLiteral("reason"), m_reason);
+    values.insert(QStringLiteral("status"), m_status);
+    values.insert(QStringLiteral("display"), m_text);
+    values.insert(QStringLiteral("balances"), balances);
+    values.insert(QStringLiteral("updatedAt"), m_updatedAt.isValid()
+                      ? m_updatedAt.toString(Qt::ISODateWithMs) : QString());
+    return values;
 }
 
 /** 合并并发触发并尊重冷却时间，不允许手动绕过限流。 */
@@ -227,7 +263,7 @@ void DeepSeekBalanceController::begin()
     trace(QStringLiteral("task_begin"));
     QFile file(QDir(m_profile).filePath(QStringLiteral("auth.json")));
     if (!file.open(QIODevice::ReadOnly) || file.size() > 1024 * 1024) {
-        fail(tr("当前 Profile 的凭据不可读"));
+        fail(tr("当前 Profile 的凭据不可读"), QStringLiteral("credentials_missing"));
         complete();
         return;
     }
@@ -237,7 +273,7 @@ void DeepSeekBalanceController::begin()
     if (auth.value(QStringLiteral("type")).toString() != QStringLiteral("api_key")
         || !key.startsWith(QStringLiteral("sk-")) || key.size() > 4096
         || key.contains(QRegularExpression(QStringLiteral("[\\s\\x00-\\x1f\\x7f]")))) {
-        fail(tr("当前 Profile 未配置可用的 DeepSeek API Key"));
+        fail(tr("当前 Profile 未配置可用的 DeepSeek API Key"), QStringLiteral("credentials_invalid"));
         complete();
         return;
     }
@@ -276,7 +312,7 @@ void DeepSeekBalanceController::attempt()
     m_attemptClock.start();
     m_reply = m_factory ? m_factory(request) : m_network.get(request);
     if (!m_reply) {
-        fail(tr("无法创建余额请求"));
+        fail(tr("无法创建余额请求"), QStringLiteral("request_create_failed"));
         complete();
         return;
     }
@@ -323,6 +359,8 @@ void DeepSeekBalanceController::finish(QNetworkReply *reply, quint64 generation)
         m_balances = balances;
         m_available = available;
         m_state = Ready;
+        m_reason = available ? QStringLiteral("available") : QStringLiteral("account_unavailable");
+        m_updatedAt = QDateTime::currentDateTime();
         QStringList texts;
         for (auto it = balances.cbegin(); it != balances.cend(); ++it)
             texts << QStringLiteral("💵 %1%2").arg(currencySymbol(it.key()), it.value());
@@ -360,9 +398,13 @@ void DeepSeekBalanceController::finish(QNetworkReply *reply, quint64 generation)
         delay = std::max<qint64>(1000, delay);
         m_notBefore = QDateTime::currentMSecsSinceEpoch() + delay;
     }
-    fail(m_timeout ? tr("请求超过 1 秒") : m_oversized ? tr("余额响应过大")
+    const QString failureReason = m_timeout ? tr("请求超过 1 秒") : m_oversized ? tr("余额响应过大")
          : code == 401 ? tr("当前 Profile 的密钥认证失败")
-         : code == 200 ? tr("余额响应格式异常") : tr("网络或服务错误（HTTP %1）").arg(code));
+         : code == 200 ? tr("余额响应格式异常") : tr("网络或服务错误（HTTP %1）").arg(code);
+    const QString failureCode = m_timeout ? QStringLiteral("timeout") : m_oversized ? QStringLiteral("response_too_large")
+         : code == 401 ? QStringLiteral("credentials_rejected")
+         : code == 200 ? QStringLiteral("response_invalid") : QStringLiteral("network_error");
+    fail(failureReason, failureCode);
     if (transient && m_retries < 3) {
         ++m_retries;
         m_status += tr("；等待重试 %1/3").arg(m_retries);
@@ -375,9 +417,11 @@ void DeepSeekBalanceController::finish(QNetworkReply *reply, quint64 generation)
 }
 
 /** 统一展示失败状态，原因只能来自本地脱敏文案。 */
-void DeepSeekBalanceController::fail(const QString &reason)
+void DeepSeekBalanceController::fail(const QString &reason, const QString &code)
 {
     m_state = Error;
+    m_reason = code.isEmpty() ? QStringLiteral("query_failed") : code;
+    m_updatedAt = QDateTime::currentDateTime();
     m_text = tr("DeepSeek: 余额获取失败");
     m_status = reason;
     trace(QStringLiteral("query_failed"), {{"reason", reason}});

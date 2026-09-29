@@ -5,6 +5,7 @@
 #include "pi/PiProcess.h"
 #include "pi/PiRpcClient.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -66,6 +67,11 @@ AgentSessionController::AgentSessionController(PiProcess *process, PiRpcClient *
 {
     Q_ASSERT(m_process && m_rpcClient && m_chatModel);
 
+    m_petTerminalTimer.setSingleShot(true);
+    connect(&m_petTerminalTimer, &QTimer::timeout, this, [this] {
+        setPetState(connected() ? QStringLiteral("idle") : QStringLiteral("disconnected"),
+                    QStringLiteral("terminal_observation_finished"));
+    });
     m_workingTimer.setParent(this);
     m_workingTimer.setObjectName(QStringLiteral("workingWordTimer"));
     m_workingTimer.setInterval(10000);
@@ -92,6 +98,8 @@ AgentSessionController::AgentSessionController(PiProcess *process, PiRpcClient *
         m_diagnostics.clear();
         m_diagnosticTimer.stop();
         m_ready = false;
+        ++m_petGeneration;
+        setPetState(QStringLiteral("disconnected"), QStringLiteral("connecting"));
         m_initialStateRequest = m_rpcClient->requestState();
         m_initialMessagesRequest = m_rpcClient->requestMessages();
         m_statsSupported = true;
@@ -99,12 +107,15 @@ AgentSessionController::AgentSessionController(PiProcess *process, PiRpcClient *
         emit sessionStatsChanged();
     });
     connect(m_process, &PiProcess::runningChanged, this, [this] {
-        if (!m_process->running())
+        if (!m_process->running()) {
             m_ready = false;
+            setPetState(QStringLiteral("disconnected"), QStringLiteral("process_stopped"));
+        }
         emit connectedChanged();
     });
     connect(m_process, &PiProcess::processError, this, [this](const QString &message) {
         m_ready = false;
+        setPetState(QStringLiteral("disconnected"), QStringLiteral("process_error"));
         emit connectedChanged();
         setBusy(false);
         setStatusText(tr("Pi 连接失败"));
@@ -113,6 +124,7 @@ AgentSessionController::AgentSessionController(PiProcess *process, PiRpcClient *
         flushDiagnostics();
     });
     connect(m_process, &PiProcess::processExited, this, [this](int exitCode) {
+        setPetState(QStringLiteral("disconnected"), QStringLiteral("process_exited"));
         setBusy(false);
         setStatusText(tr("Pi 已退出（%1）").arg(exitCode));
         m_statsRequestId.clear();
@@ -225,6 +237,8 @@ bool AgentSessionController::prompt(const QString &text, bool followUp)
         m_runHadError = false;
         m_promptElapsed.start();
         m_firstEventMs = -1;
+        m_cancelRequested = false;
+        setPetState(QStringLiteral("thinking"), QStringLiteral("prompt_accepted"));
         m_firstTextMs = -1;
         setStatusText(m_workingText + QStringLiteral("…"));
         qCInfo(agentControllerLog) << "[AgentSession] Prompt 已提交，字符数:" << trimmed.size();
@@ -261,6 +275,8 @@ void AgentSessionController::abort()
     // Pi 的 abort 不清除队列；必须先清队列，否则中止后可能自动续跑。
     retrieveQueue();
     m_rpcClient->abort();
+    m_cancelRequested = true;
+    setPetState(QStringLiteral("cancelled"), QStringLiteral("user_abort"));
     setStatusText(tr("正在中止…"));
     qCInfo(agentControllerLog) << "[AgentSession] 已发送中止请求";
 }
@@ -297,6 +313,9 @@ void AgentSessionController::switchSession(const QString &path)
 void AgentSessionController::prepareWorkspaceSwitch()
 {
     m_ready = false;
+    ++m_petGeneration;
+    m_petTerminalTimer.stop();
+    setPetState(QStringLiteral("disconnected"), QStringLiteral("session_switch"));
     m_initialStateRequest.clear();
     m_initialMessagesRequest.clear();
     m_sessionFile.clear();
@@ -354,8 +373,13 @@ void AgentSessionController::handleEvent(const PiEvent &event)
         emit queueChanged();
     } else if (type == QStringLiteral("agent_start")) {
         setBusy(true);
+        setPetState(QStringLiteral("thinking"), QStringLiteral("agent_start"));
         setStatusText(m_workingText + QStringLiteral("…"));
     } else if (type == QStringLiteral("agent_settled")) {
+        const QString terminalState = m_cancelRequested ? QStringLiteral("cancelled")
+            : m_runHadError ? QStringLiteral("error") : QStringLiteral("success");
+        setPetState(terminalState, QStringLiteral("agent_settled"));
+        m_petTerminalTimer.start(1500);
         setBusy(false);
         m_chatModel->finishAssistant({}, false);
         setStatusText(m_runHadError ? tr("本轮已结束，错误详情见会话") : tr("就绪"));
@@ -374,6 +398,7 @@ void AgentSessionController::handleEvent(const PiEvent &event)
             m_chatModel->appendUserMessage(extractText(message.value(QStringLiteral("content"))));
         } else if (message.value(QStringLiteral("role")).toString() == QStringLiteral("assistant")) {
             m_chatModel->ensureStreamingAssistant();
+            setPetState(QStringLiteral("thinking"), QStringLiteral("assistant_message_start"));
             setStatusText(m_workingText + QStringLiteral("…"));
         }
     } else if (type == QStringLiteral("message_update")) {
@@ -406,6 +431,7 @@ void AgentSessionController::handleEvent(const PiEvent &event)
             QJsonDocument(payload.value(QStringLiteral("args")).toObject()).toJson(QJsonDocument::Indented));
         m_chatModel->startTool(payload.value(QStringLiteral("toolCallId")).toString(),
                                payload.value(QStringLiteral("toolName")).toString(), input);
+        setPetState(QStringLiteral("working"), QStringLiteral("tool_execution_start"));
         setStatusText(tr("正在执行工具：%1").arg(payload.value(QStringLiteral("toolName")).toString()));
     } else if (type == QStringLiteral("tool_execution_update")) {
         const QJsonObject result = payload.value(QStringLiteral("partialResult")).toObject();
@@ -439,6 +465,7 @@ void AgentSessionController::handleEvent(const PiEvent &event)
         else
             setStatusText(tr("重试成功，正在完成本轮"));
     } else if (type == QStringLiteral("compaction_start")) {
+        setPetState(QStringLiteral("compacting"), QStringLiteral("compaction_start"));
         setStatusText(tr("正在压缩上下文…"));
         m_chatModel->appendSystemMessage(m_statusText);
         qCInfo(agentControllerLog) << "[AgentCompaction] started; reason=" << payload.value(QStringLiteral("reason"));
@@ -453,8 +480,13 @@ void AgentSessionController::handleEvent(const PiEvent &event)
         }
         refreshSessionStats();
     } else if (type == QStringLiteral("extension_ui_request")) {
+        const QString method = payload.value(QStringLiteral("method")).toString();
+        if (method == QStringLiteral("select") || method == QStringLiteral("confirm")
+            || method == QStringLiteral("input") || method == QStringLiteral("editor"))
+            setPetState(QStringLiteral("waiting"), QStringLiteral("extension_ui_request"));
         handleExtensionUi(payload);
     } else if (type == QStringLiteral("extension_error")) {
+        setPetState(QStringLiteral("error"), QStringLiteral("extension_error"));
         const QString message = tr("扩展执行失败：%1").arg(payload.value(QStringLiteral("error")).toString());
         reportRuntimeError(message);
     }
@@ -550,7 +582,13 @@ void AgentSessionController::handleResponse(const QJsonObject &payload)
             emit restoreDraftRequested(drafts.join(QStringLiteral("\n\n")));
         qCInfo(agentControllerLog) << "[PromptQueue] 取回成功；消息数:" << drafts.size();
     } else if (command == QStringLiteral("get_state")) {
+        const QString previousSessionFile = m_sessionFile;
         m_sessionFile = data.value(QStringLiteral("sessionFile")).toString();
+        if (!previousSessionFile.isEmpty() && previousSessionFile != m_sessionFile) {
+            ++m_petGeneration;
+            m_petTerminalTimer.stop();
+            setPetState(QStringLiteral("idle"), QStringLiteral("session_state_changed"));
+        }
         m_sessionName = data.value(QStringLiteral("sessionName")).toString();
         const QJsonObject model = data.value(QStringLiteral("model")).toObject();
         const QString provider = model.value(QStringLiteral("provider")).toString();
@@ -626,6 +664,9 @@ void AgentSessionController::handleResponse(const QJsonObject &payload)
             return;
         }
         m_statsRequestId.clear();
+        ++m_petGeneration;
+        m_petTerminalTimer.stop();
+        setPetState(QStringLiteral("idle"), QStringLiteral("session_changed"));
         m_sessionStats.clear();
         m_diagnostics.clear();
         m_diagnosticTimer.stop();
@@ -644,6 +685,7 @@ void AgentSessionController::handleResponse(const QJsonObject &payload)
     if (initializationResponse && !requestId.isEmpty()
         && m_initialStateRequest.isEmpty() && m_initialMessagesRequest.isEmpty()) {
         m_ready = true;
+        setPetState(QStringLiteral("idle"), QStringLiteral("session_ready"));
         emit connectedChanged();
         setStatusText(tr("就绪"));
         refreshSessionStats();
@@ -742,6 +784,34 @@ QString AgentSessionController::workingText() const
 QVariantMap AgentSessionController::sessionStats() const
 {
     return m_sessionStats;
+}
+
+/** 返回当前供桌宠消费的结构化状态名。 */
+QString AgentSessionController::petState() const
+{
+    return m_petState;
+}
+
+/** 发布带会话、代次和顺序号的桌宠状态快照。 */
+void AgentSessionController::setPetState(const QString &state, const QString &reason)
+{
+    if (state == m_petState && reason.isEmpty())
+        return;
+    m_petState = state;
+    ++m_petSequence;
+    const QVariantMap snapshot{
+        {QStringLiteral("state"), state},
+        {QStringLiteral("sessionId"), m_sessionFile},
+        {QStringLiteral("generation"), QVariant::fromValue<qulonglong>(m_petGeneration)},
+        {QStringLiteral("sequence"), QVariant::fromValue<qulonglong>(m_petSequence)},
+        {QStringLiteral("reason"), reason},
+        {QStringLiteral("changedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)}
+    };
+    emit petStateValueChanged();
+    emit petStateChanged(snapshot);
+    qCInfo(agentControllerLog) << "[PetState] 状态变化；state=" << state
+                               << "generation=" << m_petGeneration
+                               << "sequence=" << m_petSequence;
 }
 
 /** 返回 Pi 上报的可用命令，供编辑器补全。 */
@@ -992,6 +1062,7 @@ void AgentSessionController::flushDiagnostics()
 void AgentSessionController::reportRuntimeError(const QString &message)
 {
     m_runHadError = true;
+    setPetState(QStringLiteral("error"), QStringLiteral("runtime_error"));
     setStatusText(message);
     m_chatModel->appendSystemMessage(message, true);
     qCWarning(agentControllerLog) << "[AgentRuntime]" << message;

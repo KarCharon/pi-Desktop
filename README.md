@@ -28,6 +28,7 @@
 - 支持按不同 Pi Profile 筛选 Token 使用量；默认使用当前 Profile，也可在右侧统计栏切换其他已发现 Profile
 - 当前所选 Profile 的全部 Pi Session Token 汇总：支持日、周、月、总计和自定义日期，展示趋势、输入/输出、缓存读写、费用及活跃会话数
 - 当前会话上下文占用与累计 Token 保留在全局统计下方（以 Pi 返回值为准，缺失显示未知）
+- 可选 Windows 桌宠宿主：独立 helper、状态/余额桥接、启用意愿、大小、位置和联动设置；缺少离线 Electron 运行包时主程序仍可正常聊天
 - 工作提示每 10 秒从 20 个英文词中随机切换且不连续重复，附带依次跳动的三点动画；结束或断开后停止
 - ChatModel、Agent RPC 与 QML 交互回归测试
 
@@ -126,6 +127,7 @@ PI_CODING_AGENT_SESSION_DIR=%USERPROFILE%/.pi/profiles/Desktop/sessions
 - `[AgentTiming]` 在整轮结束时记录 `firstEventMs`、`firstTextMs` 和 `totalMs`。这些是从提交开始的端到端耗时，包含 Pi 扩展、网络、模型推理和工具等待，不能当作纯 RPC 传输耗时。
 - 上下文占用与累计 Token 不相同；当前会话统计在启动、会话切换、回合结束、压缩及整轮结束时更新，不逐 Token 轮询。压缩后的未知占用显示 `Context —`。
 - 全局 Token 统计在后台增量扫描所选 Profile 的 Session JSONL，只读取时间戳、usage 和费用，不保留 Prompt、回复或工具正文。首次读取完整历史，后续仅处理增长文件的新内容；时间范围按本地时区聚合。切换统计 Profile 不会切换当前 Pi 连接或左侧活动会话列表。
+- 桌宠宿主只向 helper 提供脱敏工作状态和余额快照；桥接使用代次令牌、127.0.0.1 回调、资源根校验和有界自动重启，不向桌宠传递 API Key、Prompt 或工具输出。运行包可用 `node scripts/build-pet-runtime.mjs` 按固定提交构建，再通过 `PI_PET_RUNTIME_DIR` 安装到程序同级 `pet/` 目录；缺失时主程序仍可正常聊天。
 - stderr 仅保留最近 16 KiB，批量更新同一诊断卡片；stderr 本身不一定意味着请求失败。
 
 ## 当前范围

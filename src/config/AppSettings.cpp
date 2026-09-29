@@ -1,5 +1,8 @@
 #include "AppSettings.h"
 
+#include <algorithm>
+
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QLoggingCategory>
@@ -137,6 +140,117 @@ void AppSettings::setUiTheme(const QString &value)
 bool AppSettings::isDarkTheme(const QString &value)
 {
     return value == QStringLiteral("dark");
+}
+
+/** 读取桌宠启用意愿，默认关闭以保持旧版本启动行为。 */
+bool AppSettings::petEnabled() const
+{
+    return m_settings.value(QStringLiteral("pet/enabled"), false).toBool();
+}
+
+/** 保存桌宠启用意愿。 */
+void AppSettings::setPetEnabled(bool enabled)
+{
+    if (enabled == petEnabled())
+        return;
+    m_settings.setValue(QStringLiteral("pet/enabled"), enabled);
+    emit petEnabledChanged();
+}
+
+/** 读取限制后的桌宠大小。 */
+int AppSettings::petSize() const
+{
+    return std::clamp(m_settings.value(QStringLiteral("pet/size"), 128).toInt(), 64, 480);
+}
+
+/** 保存限制后的桌宠大小。 */
+void AppSettings::setPetSize(int size)
+{
+    const int normalized = std::clamp(size, 64, 480);
+    if (normalized == petSize())
+        return;
+    m_settings.setValue(QStringLiteral("pet/size"), normalized);
+    emit petSizeChanged();
+}
+
+/** 读取桌宠初始横坐标。 */
+int AppSettings::petPositionX() const
+{
+    return std::clamp(m_settings.value(QStringLiteral("pet/positionX"), -1).toInt(), -32768, 32767);
+}
+
+/** 保存桌宠初始横坐标。 */
+void AppSettings::setPetPositionX(int value)
+{
+    const int normalized = std::clamp(value, -32768, 32767);
+    if (normalized == petPositionX())
+        return;
+    m_settings.setValue(QStringLiteral("pet/positionX"), normalized);
+    emit petPositionChanged();
+}
+
+/** 读取桌宠初始纵坐标。 */
+int AppSettings::petPositionY() const
+{
+    return std::clamp(m_settings.value(QStringLiteral("pet/positionY"), -1).toInt(), -32768, 32767);
+}
+
+/** 保存桌宠初始纵坐标。 */
+void AppSettings::setPetPositionY(int value)
+{
+    const int normalized = std::clamp(value, -32768, 32767);
+    if (normalized == petPositionY())
+        return;
+    m_settings.setValue(QStringLiteral("pet/positionY"), normalized);
+    emit petPositionChanged();
+}
+
+/** 读取工作状态联动开关，默认启用。 */
+bool AppSettings::petFollowWorkStatus() const
+{
+    return m_settings.value(QStringLiteral("pet/followWorkStatus"), true).toBool();
+}
+
+/** 保存工作状态联动开关。 */
+void AppSettings::setPetFollowWorkStatus(bool enabled)
+{
+    if (enabled == petFollowWorkStatus())
+        return;
+    m_settings.setValue(QStringLiteral("pet/followWorkStatus"), enabled);
+    emit petFollowWorkStatusChanged();
+}
+
+/** 读取余额联动开关，默认启用。 */
+bool AppSettings::petFollowBalance() const
+{
+    return m_settings.value(QStringLiteral("pet/followBalance"), true).toBool();
+}
+
+/** 保存余额联动开关。 */
+void AppSettings::setPetFollowBalance(bool enabled)
+{
+    if (enabled == petFollowBalance())
+        return;
+    m_settings.setValue(QStringLiteral("pet/followBalance"), enabled);
+    emit petFollowBalanceChanged();
+}
+
+/** 读取桌宠运行包目录，默认使用程序同级 pet 目录。 */
+QString AppSettings::petRuntimePath() const
+{
+    const QString defaultPath = QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("pet"));
+    return QDir::cleanPath(QDir::fromNativeSeparators(
+        m_settings.value(QStringLiteral("pet/runtimePath"), defaultPath).toString()));
+}
+
+/** 保存桌宠运行包目录，拒绝相对路径和空值。 */
+void AppSettings::setPetRuntimePath(const QString &path)
+{
+    const QString normalized = QDir::cleanPath(QDir::fromNativeSeparators(path.trimmed()));
+    if (normalized.isEmpty() || !QDir::isAbsolutePath(normalized) || normalized == petRuntimePath())
+        return;
+    m_settings.setValue(QStringLiteral("pet/runtimePath"), normalized);
+    emit petRuntimePathChanged();
 }
 
 /** 归一化有效目录并去重，仅检查目录元数据，不读取凭据或会话文件。 */

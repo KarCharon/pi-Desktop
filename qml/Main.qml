@@ -253,6 +253,72 @@ ApplicationWindow {
                         onClicked: appController.settings.uiTheme = "dark"
                     }
                 }
+                Label { text: "桌宠（可选运行包）"; color: Theme.textBody }
+                RowLayout {
+                    Layout.fillWidth: true
+                    CheckBox {
+                        text: "启用桌宠"
+                        checked: appController.pet.enabled
+                        onToggled: appController.pet.enabled = checked
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        text: appController.pet.statusText
+                        color: appController.pet.errorText ? Theme.danger : Theme.textSecondary
+                        elide: Text.ElideRight
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label { text: "大小"; color: Theme.textSecondary }
+                    SpinBox {
+                        from: 64
+                        to: 480
+                        value: appController.pet.size
+                        editable: true
+                        onValueModified: appController.pet.size = value
+                    }
+                    Label { text: "初始位置"; color: Theme.textSecondary }
+                    SpinBox {
+                        from: -1
+                        to: 32767
+                        value: appController.pet.positionX
+                        editable: true
+                        onValueModified: appController.pet.positionX = value
+                    }
+                    SpinBox {
+                        from: -1
+                        to: 32767
+                        value: appController.pet.positionY
+                        editable: true
+                        onValueModified: appController.pet.positionY = value
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    CheckBox {
+                        text: "联动工作状态"
+                        checked: appController.pet.followWorkStatus
+                        onToggled: appController.pet.followWorkStatus = checked
+                    }
+                    CheckBox {
+                        text: "联动余额"
+                        checked: appController.pet.followBalance
+                        onToggled: appController.pet.followBalance = checked
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        text: "位置为 -1 时由桌宠运行包决定"
+                        color: Theme.textMuted
+                        font.pixelSize: 10
+                    }
+                }
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    color: appController.pet.errorText ? Theme.danger : Theme.textSecondary
+                    text: appController.pet.errorText || "桌宠默认关闭；需要单独安装并放置 pet 运行包，缺少运行包不会影响聊天。"
+                }
                 Label { text: "Pi 命令或可执行文件"; color: Theme.textBody }
                 RowLayout {
                     Layout.fillWidth: true

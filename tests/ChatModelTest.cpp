@@ -164,6 +164,39 @@ private slots:
         QCOMPARE(changes, 1);
     }
 
+    /** 桌宠设置默认关闭、范围受限，并可独立于 Pi Profile 持久化。 */
+    void petSettingsPersistAndClamp()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const auto originalFormat = QSettings::defaultFormat();
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, dir.path());
+        {
+            AppSettings settings;
+            QVERIFY(!settings.petEnabled());
+            settings.setPetEnabled(true);
+            settings.setPetSize(9999);
+            settings.setPetPositionX(-99999);
+            settings.setPetPositionY(99999);
+            settings.setPetFollowWorkStatus(false);
+            settings.setPetFollowBalance(false);
+            QCOMPARE(settings.petSize(), 480);
+            QCOMPARE(settings.petPositionX(), -32768);
+            QCOMPARE(settings.petPositionY(), 32767);
+        }
+        {
+            AppSettings settings;
+            QVERIFY(settings.petEnabled());
+            QCOMPARE(settings.petSize(), 480);
+            QCOMPARE(settings.petPositionX(), -32768);
+            QCOMPARE(settings.petPositionY(), 32767);
+            QVERIFY(!settings.petFollowWorkStatus());
+            QVERIFY(!settings.petFollowBalance());
+        }
+        QSettings::setDefaultFormat(originalFormat);
+    }
+
     /** 切换 Profile 时，即使旧扫描尚未完成也不能回填旧目录的数据。 */
     void profileSwitchDiscardsOldScan()
     {

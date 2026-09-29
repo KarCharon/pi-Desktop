@@ -1,12 +1,14 @@
 #pragma once
 
 #include <QObject>
+#include <QDateTime>
 #include <QMap>
 #include <QNetworkAccessManager>
 #include <QPointer>
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QJsonObject>
+#include <QVariantMap>
 #include <functional>
 
 class QNetworkReply;
@@ -25,6 +27,8 @@ class DeepSeekBalanceController final : public QObject
     Q_PROPERTY(QString statusText READ statusText NOTIFY changed)
     /** 仅 Ready 状态下代表有效的账户可用性。 */
     Q_PROPERTY(bool isAvailable READ isAvailable NOTIFY changed)
+    /** 供桌宠读取的金额、币种、可用性和原因快照。 */
+    Q_PROPERTY(QVariantMap snapshot READ snapshot NOTIFY changed)
     /** 本地脱敏诊断日志路径，不包含 Profile 或认证信息。 */
     Q_PROPERTY(QString diagnosticLogPath READ diagnosticLogPath CONSTANT)
 public:
@@ -55,6 +59,10 @@ public:
     bool isAvailable() const { return m_available; }
     /** 原子更新 Profile 与启用状态；身份变化清除旧余额和动画。 */
     void setContext(const QString &profile, bool enabled);
+    /** 设置未启用时的稳定原因码，不触发额外网络请求。 */
+    void setUnavailableReason(const QString &reason);
+    /** 返回供桌宠和其他宿主读取的结构化余额快照。 */
+    QVariantMap snapshot() const;
     /** 合并自动和手动刷新，冷却期间不绕过限制。 */
     Q_INVOKABLE void refresh();
     /** 仅诊断记录模型完成事件，不触发查询；source 仅接受内部事件白名单。 */
@@ -90,8 +98,8 @@ private:
     void finish(QNetworkReply *reply, quint64 generation);
     /** 结束任务，释放密钥并安排至多一次合并刷新。 */
     void complete();
-    /** 更新统一失败文案及脱敏原因。 */
-    void fail(const QString &reason);
+    /** 更新统一失败文案及稳定原因码。 */
+    void fail(const QString &reason, const QString &code = {});
     /** 取消旧任务及所有定时器，断开旧 reply 回调。 */
     void cancel();
     QString m_logPath; ///< 每个应用实例共享的本地日志文件，进程锁保护轮转。
@@ -115,6 +123,8 @@ private:
     QMap<QString, QString> m_balances; ///< 当前身份的上次有效余额。
     QString m_text; ///< 主栏文本。
     QString m_status; ///< 脱敏状态说明。
+    QString m_reason = QStringLiteral("disabled"); ///< 稳定原因码，不含认证详情。
+    QDateTime m_updatedAt; ///< 最近一次成功或失败状态更新时间。
     State m_state = Disabled; ///< 查询阶段。
     bool m_enabled = false; ///< 当前是否确认 DeepSeek。
     bool m_available = false; ///< 上次有效可用性。

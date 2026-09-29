@@ -93,6 +93,11 @@ private slots:
         controller.setContext(profile.path(), true);
         QTRY_COMPARE(controller.state(), DeepSeekBalanceController::Ready);
         QCOMPARE(calls, 1);
+        const QVariantMap snapshot = controller.snapshot();
+        QCOMPARE(snapshot.value(QStringLiteral("state")).toString(), QStringLiteral("ready"));
+        QCOMPARE(snapshot.value(QStringLiteral("reason")).toString(), QStringLiteral("available"));
+        QVERIFY(snapshot.value(QStringLiteral("balances")).toMap().contains(QStringLiteral("CNY")));
+        QVERIFY(!snapshot.value(QStringLiteral("updatedAt")).toString().isEmpty());
         QVERIFY(controller.m_poll.isActive());
         controller.modelResponseCompleted(true, QStringLiteral("assistant_message_end"));
         controller.modelResponseCompleted(true, QStringLiteral("compaction_end"));

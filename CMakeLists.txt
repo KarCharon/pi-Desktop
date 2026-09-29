@@ -26,6 +26,12 @@ qt_add_executable(pi_Desktop
     src/config/AppSettings.cpp
     src/config/DeepSeekBalanceController.h
     src/config/DeepSeekBalanceController.cpp
+    src/pet/PetBridge.h
+    src/pet/PetBridge.cpp
+    src/pet/PetStateAdapter.h
+    src/pet/PetStateAdapter.cpp
+    src/pet/PetController.h
+    src/pet/PetController.cpp
     src/pi/PiEvent.h
     src/pi/PiEvent.cpp
     src/pi/PiProcess.h
@@ -112,6 +118,12 @@ qt_generate_deploy_qml_app_script(
 )
 install(SCRIPT ${deploy_script})
 
+# 桌宠运行包由受控离线构建阶段提供；源码仓库缺少运行包时不阻塞主程序安装。
+set(PI_PET_RUNTIME_DIR "" CACHE PATH "已校验的离线桌宠运行包目录")
+if(PI_PET_RUNTIME_DIR AND IS_DIRECTORY "${PI_PET_RUNTIME_DIR}")
+    install(DIRECTORY "${PI_PET_RUNTIME_DIR}/" DESTINATION ${CMAKE_INSTALL_BINDIR}/pet)
+endif()
+
 # 菜单安装脚本与程序同目录，注册发布路径而不是开发构建路径。
 if(WIN32)
     install(FILES scripts/install-folder-menu.cmd scripts/uninstall-folder-menu.cmd
@@ -163,6 +175,9 @@ if(BUILD_TESTING)
         src/app/AppController.h src/app/AppController.cpp
         src/config/AppSettings.h src/config/AppSettings.cpp
         src/config/DeepSeekBalanceController.h src/config/DeepSeekBalanceController.cpp
+        src/pet/PetBridge.h src/pet/PetBridge.cpp
+        src/pet/PetStateAdapter.h src/pet/PetStateAdapter.cpp
+        src/pet/PetController.h src/pet/PetController.cpp
         src/session/SessionModel.h src/session/SessionModel.cpp
         src/session/ProjectModel.h src/session/ProjectModel.cpp
         src/agent/AgentSessionController.h src/agent/AgentSessionController.cpp

@@ -4,6 +4,7 @@
 #include "chat/ChatModel.h"
 #include "config/AppSettings.h"
 #include "config/DeepSeekBalanceController.h"
+#include "pet/PetController.h"
 #include "session/SessionModel.h"
 #include "session/ProjectModel.h"
 
@@ -25,6 +26,8 @@ class AppController final : public QObject
     Q_PROPERTY(AppSettings *settings READ settings CONSTANT)
     /** 当前官方 DeepSeek 余额及查询状态。 */
     Q_PROPERTY(DeepSeekBalanceController *balance READ balance CONSTANT)
+    /** 可选独立桌宠控制器。 */
+    Q_PROPERTY(PetController *pet READ pet CONSTANT)
     Q_PROPERTY(QString settingsError MEMBER m_settingsError NOTIFY settingsErrorChanged)
     Q_PROPERTY(ProjectModel *projects READ projects CONSTANT)
     Q_PROPERTY(bool workspaceSwitching READ workspaceSwitching NOTIFY workspaceNavigationChanged)
@@ -49,6 +52,8 @@ public:
     [[nodiscard]] AgentSessionController *agent() const;
     /** 返回独立余额控制器，不向 QML 暴露认证数据。 */
     DeepSeekBalanceController *balance() const { return m_balance; }
+    /** 返回可选桌宠控制器。 */
+    PetController *pet() const { return m_pet; }
     /** 返回应用配置。 */
     [[nodiscard]] AppSettings *settings() const;
 
@@ -101,6 +106,7 @@ private:
     PiProcess *m_process;
     PiRpcClient *m_rpcClient;
     AgentSessionController *m_agent;
+    PetController *m_pet; ///< 可选桌宠生命周期与桥接控制器。
     bool m_restartPending = false;
     QString m_settingsError;
     QString m_startupSession;

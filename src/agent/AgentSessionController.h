@@ -31,6 +31,7 @@ class AgentSessionController final : public QObject
     Q_PROPERTY(QString thinkingLevel READ thinkingLevel NOTIFY thinkingLevelChanged)
     Q_PROPERTY(QString workingText READ workingText NOTIFY workingTextChanged)
     Q_PROPERTY(QVariantMap sessionStats READ sessionStats NOTIFY sessionStatsChanged)
+    Q_PROPERTY(QString petState READ petState NOTIFY petStateValueChanged)
     Q_PROPERTY(QVariantList commands READ commands NOTIFY commandsChanged)
     Q_PROPERTY(QVariantList attachments READ attachments NOTIFY attachmentsChanged)
 
@@ -61,6 +62,8 @@ public:
     [[nodiscard]] QString workingText() const;
     /** 返回 Pi 提供的会话累计统计与当前上下文估计。 */
     [[nodiscard]] QVariantMap sessionStats() const;
+    /** 返回桌宠使用的结构化运行状态名。 */
+    [[nodiscard]] QString petState() const;
     /** 返回 Pi 上报的可用命令、提示模板与技能。 */
     [[nodiscard]] QVariantList commands() const;
     /** 返回当前待随下一条 Prompt 发送的附件。 */
@@ -147,6 +150,10 @@ signals:
     void workingTextChanged();
     /** 上下文及累计统计变化。 */
     void sessionStatsChanged();
+    /** 桌宠状态字符串属性发生变化。 */
+    void petStateValueChanged();
+    /** 桌宠状态发生有意义变化，携带会话、代次和顺序号。 */
+    void petStateChanged(const QVariantMap &state);
     /** 可用命令列表变化。 */
     void commandsChanged();
     /** 待发送附件列表变化。 */
@@ -212,6 +219,8 @@ private:
     void flushDiagnostics();
     /** 展示运行错误并保留本轮故障标记。 */
     void reportRuntimeError(const QString &message);
+    /** 更新桌宠结构化状态并保留终态观察窗口。 */
+    void setPetState(const QString &state, const QString &reason = {});
 
     PiProcess *m_process;
     PiRpcClient *m_rpcClient;
@@ -223,6 +232,11 @@ private:
     QString m_queueText;
     QHash<QString, QPair<QString, bool>> m_promptRequests;
     QString m_statusText;
+    QString m_petState = QStringLiteral("disconnected"); ///< 当前桌宠状态名。
+    quint64 m_petGeneration = 0; ///< 当前会话运行代次，切换会话时递增。
+    quint64 m_petSequence = 0; ///< 桌宠状态变化序号，防止异步事件倒退。
+    bool m_cancelRequested = false; ///< 当前运行是否由用户主动中止。
+    QTimer m_petTerminalTimer; ///< 成功、错误或取消状态的最短展示计时器。
     QString m_sessionName;
     QString m_sessionFile;
     QString m_modelName;
@@ -242,6 +256,6 @@ private:
     QTimer m_workingTimer;
     QByteArray m_diagnostics;
     QElapsedTimer m_promptElapsed;
-    qint64 m_firstEventMs = -1;
-    qint64 m_firstTextMs = -1;
+    qint64 m_firstEventMs = -1; ///< 首个非 response 事件相对本轮提交的耗时。
+    qint64 m_firstTextMs = -1; ///< 首段正文相对本轮提交的耗时。
 };
