@@ -89,6 +89,9 @@ private:
     /** 根据已确认连接和模型同步余额上下文。 */
     void updateBalanceContext();
 
+    /** 将发现的 Profile 列表同步给 Token 统计筛选器。 */
+    void syncTokenUsageProfiles();
+
     DeepSeekBalanceController *m_balance; ///< 官方账户余额服务。
     bool m_balanceEnabled; ///< 测试可显式禁用，避免读取真实凭据。
     AppSettings *m_settings;

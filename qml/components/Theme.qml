@@ -85,6 +85,10 @@ QtObject {
     readonly property color textFaint: dark ? "#6d675f" : "#aaa49a"
     /** 强调色按钮上的文字（浅深主题均为白色）。 */
     readonly property color textOnAccent: "#ffffff"
+    /** 文本选区背景色，显式提供给可编辑控件，避免依赖样式调色板初始化时机。 */
+    readonly property color textSelectionBg: dark ? "#b97850" : "#c47a59"
+    /** 文本选区前景色，深浅主题都保持白色以确保选中文字清晰。 */
+    readonly property color textSelectionFg: "#ffffff"
 
     // ── 强调色（暖橙主色） ──────────────────────────────────────
     /** 主强调色，用于图标、链接、关键文字。 */

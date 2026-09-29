@@ -24,7 +24,8 @@ Item {
     signal abortRequested()
     signal attachRequested()
     signal attachmentRemoved(int index)
-    signal filesDropped(var urls)
+    /** 拖放后通知宿主已插入的本地文件路径；按钮添加文件仍走附件流程。 */
+    signal filesDropped(var paths)
     /** 输入框高度上限，由宿主按窗口高度传入；超出后由内部滚动条查看。 */
     property real heightLimit: 240
 
@@ -83,7 +84,8 @@ Item {
         anchors.fill: parent
         radius: 13
         color: Theme.surfaceRaised
-        border.color: editor.activeFocus ? Theme.accentHover : Theme.borderStrong
+        border.color: dropArea.containsDrag ? Theme.accent : editor.activeFocus
+                      ? Theme.accentHover : Theme.borderStrong
 
         ColumnLayout {
             anchors.fill: parent
@@ -110,12 +112,16 @@ Item {
 
                 TextArea {
                     id: editor
+                    objectName: "promptTextArea"
                     // 宽度跟随 ScrollView 可用宽度（已扣除滚动条），高度由内容撑开。
                     width: editorScroll.availableWidth
                     placeholderText: root.connected ? "Ask pi… 输入 / 使用命令" : "正在连接 Pi…"
                     enabled: root.connected
                     color: Theme.textBody
                     placeholderTextColor: Theme.textFaint
+                    // 选区颜色直接跟随主题，避免首次启动与运行时切换主题走不同的调色板状态。
+                    selectionColor: Theme.textSelectionBg
+                    selectedTextColor: Theme.textSelectionFg
                     wrapMode: TextEdit.Wrap
                     background: null
                     leftPadding: 4
@@ -126,6 +132,10 @@ Item {
                     selectByMouse: true
                     // 原生渲染让输入与选中状态的字重、字形保持一致。
                     renderType: TextEdit.NativeRendering
+
+                    Component.onCompleted: console.info("[PromptSelection] initialized; dark=" + Theme.dark
+                                                        + "; selectionColor=" + selectionColor
+                                                        + "; selectedTextColor=" + selectedTextColor)
 
                     onTextChanged: root.updateCommandPopup()
                     onCursorPositionChanged: root.updateCommandPopup()
@@ -329,13 +339,65 @@ Item {
     }
 
     DropArea {
+        id: dropArea
+        objectName: "promptDropArea"
         anchors.fill: parent
         onDropped: drop => {
             if (drop.hasUrls) {
-                root.filesDropped(drop.urls)
-                drop.acceptProposedAction()
+                const paths = root.insertDroppedPaths(drop.urls)
+                if (paths.length > 0) {
+                    root.filesDropped(paths)
+                    drop.acceptProposedAction()
+                }
             }
         }
+    }
+
+    /**
+     * 将拖放数据转换为本地路径，过滤远程 URL 和无法识别的项目。
+     */
+    function localPathFromUrl(value) {
+        if (value && typeof value.toLocalFile === "function") {
+            const local = value.toLocalFile()
+            if (local)
+                return local
+        }
+        let path = String(value || "")
+        if (!path.startsWith("file:"))
+            return path
+        try {
+            path = decodeURIComponent(path.substring(7))
+        } catch (error) {
+            return ""
+        }
+        if (Qt.platform.os === "windows" && /^\/[A-Za-z]:/.test(path))
+            path = path.substring(1)
+        return Qt.platform.os === "windows" ? path.replace(/\//g, "\\") : path
+    }
+
+    /**
+     * 将一个或多个本地文件路径插入光标处，并返回实际插入的路径列表。
+     */
+    function insertDroppedPaths(urls) {
+        const paths = []
+        for (let index = 0; index < (urls || []).length; ++index) {
+            const path = root.localPathFromUrl(urls[index])
+            if (path && paths.indexOf(path) < 0)
+                paths.push(path)
+        }
+        if (paths.length === 0)
+            return paths
+
+        const position = editor.cursorPosition
+        const before = editor.text.substring(0, position)
+        const after = editor.text.substring(position)
+        const prefix = before.length > 0 && !before.endsWith("\n") ? "\n" : ""
+        const suffix = after.length > 0 && !after.startsWith("\n") ? "\n" : ""
+        const insertion = prefix + paths.join("\n") + suffix
+        editor.text = before + insertion + after
+        editor.cursorPosition = position + insertion.length - suffix.length
+        editor.forceActiveFocus()
+        return paths
     }
 
     /**

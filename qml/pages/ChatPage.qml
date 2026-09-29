@@ -315,7 +315,6 @@ Item {
                         onAbortRequested: page.agent.abort()
                         onAttachRequested: attachDialog.open()
                         onAttachmentRemoved: index => page.agent.removeAttachment(index)
-                        onFilesDropped: urls => page.agent.attachFiles(urls)
                     }
                 }
             }
@@ -326,6 +325,7 @@ Item {
             objectName: "contextPanel"
             visible: page.rightSidebarVisible
             sessionStats: page.agent.sessionStats
+            usageModel: page.sessionModel
             SplitView.preferredWidth: 306
             SplitView.minimumWidth: 260
             SplitView.maximumWidth: 380

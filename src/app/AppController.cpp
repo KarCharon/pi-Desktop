@@ -38,7 +38,14 @@ AppController::AppController(QObject *parent, bool balanceEnabled)
     // Profile 修改先使旧请求失效，重连确认模型后才启用新账户。
     connect(m_settings, &AppSettings::piProfilePathChanged, this, [this] {
         m_balance->setContext(m_settings->piProfilePath(), false);
+        syncTokenUsageProfiles();
+        m_sessionModel->setSessionRoot(
+            QDir(m_settings->piProfilePath()).filePath(QStringLiteral("sessions")));
+        m_sessionModel->setTokenUsageProfile(m_settings->piProfilePath());
+        m_sessionModel->refresh();
     });
+    connect(m_settings, &AppSettings::discoveryChanged,
+            this, &AppController::syncTokenUsageProfiles);
     // 转发脱敏的匹配结果与内部事件名，让日志也覆盖被禁用或模型不匹配的情况。
     connect(m_agent, &AgentSessionController::modelResponseCompleted, this,
             [this](const QString &provider, const QString &source) {
@@ -94,8 +101,10 @@ AppController::AppController(QObject *parent, bool balanceEnabled)
         m_process->setSessionFile(m_startupSession);
     });
 
+    syncTokenUsageProfiles();
     m_sessionModel->setSessionRoot(
         QDir(m_settings->piProfilePath()).filePath(QStringLiteral("sessions")));
+    m_sessionModel->setTokenUsageProfile(m_settings->piProfilePath());
     m_sessionModel->refresh();
     QTimer::singleShot(0, this, &AppController::startPi);
 }
@@ -106,6 +115,18 @@ AppController::AppController(QObject *parent, bool balanceEnabled)
 AppController::~AppController()
 {
     m_process->stop();
+}
+
+/**
+ * 将发现的 Profile 候选同步给 Token 统计筛选器，并保证当前配置可选。
+ */
+void AppController::syncTokenUsageProfiles()
+{
+    QStringList profiles = m_settings->profileDirectories();
+    const QString current = QDir::cleanPath(m_settings->piProfilePath());
+    if (!profiles.contains(current))
+        profiles.append(current);
+    m_sessionModel->setTokenUsageProfiles(profiles);
 }
 
 /** 仅在当前连接已经确认模型时启用余额查询。 */

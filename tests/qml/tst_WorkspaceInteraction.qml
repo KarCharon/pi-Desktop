@@ -13,7 +13,49 @@ TestCase {
     when: windowShown
 
     ListModel { id: messages; signal contentUpdated() }
-    ListModel { id: sessions; property bool loading: false }
+    ListModel {
+        id: sessions
+        property bool loading: false
+        property int shiftedBy: 0
+        property string tokenUsageProfile: "E:/profiles/Desktop"
+        property var tokenUsageProfiles: ["E:/profiles/Desktop", "E:/profiles/Work"]
+        property var tokenUsageView: ({ period: "month", profile: "E:/profiles/Desktop", rangeLabel: "2026年9月",
+            from: "2026-09-01", to: "2026-09-30", loading: false, updatedAt: "12:00",
+            hasData: true, sessionCount: 2, allSessionCount: 4, canMovePrevious: true,
+            canMoveNext: false, cost: 1.25,
+            tokens: { input: 5000, output: 1000, cacheRead: 6000, cacheWrite: 345, total: 12345 },
+            points: [{ label: "9/1", total: 5000 }, { label: "9/2", total: 7345 }] })
+
+        /** 切换测试桩的 Token 统计 Profile。 */
+        function setTokenUsageProfile(profile) {
+            tokenUsageProfile = profile
+            const next = Object.assign({}, tokenUsageView)
+            next.profile = profile
+            tokenUsageView = next
+        }
+
+        /** 切换测试桩的统计周期。 */
+        function setTokenUsagePeriod(period) {
+            const next = Object.assign({}, tokenUsageView)
+            next.period = period
+            tokenUsageView = next
+        }
+
+        /** 记录测试触发的周期移动量。 */
+        function shiftTokenUsagePeriod(amount) {
+            shiftedBy += amount
+        }
+
+        /** 接受测试输入并切换到自定义周期。 */
+        function setCustomTokenUsageRange(from, to) {
+            const next = Object.assign({}, tokenUsageView)
+            next.period = "custom"
+            next.from = from
+            next.to = to
+            tokenUsageView = next
+            return true
+        }
+    }
     QtObject {
         id: agent
         property bool busy: false
@@ -67,6 +109,14 @@ TestCase {
         page.rightSidebarVisible = false
         agent.busy = false
         agent.sessionStats = ({})
+        sessions.shiftedBy = 0
+        sessions.tokenUsageProfile = "E:/profiles/Desktop"
+        sessions.tokenUsageView = ({ period: "month", profile: "E:/profiles/Desktop", rangeLabel: "2026年9月",
+            from: "2026-09-01", to: "2026-09-30", loading: false, updatedAt: "12:00",
+            hasData: true, sessionCount: 2, allSessionCount: 4, canMovePrevious: true,
+            canMoveNext: false, cost: 1.25,
+            tokens: { input: 5000, output: 1000, cacheRead: 6000, cacheWrite: 345, total: 12345 },
+            points: [{ label: "9/1", total: 5000 }, { label: "9/2", total: 7345 }] })
         const sidebar = findChild(page, "sessionSidebar")
         sidebar.collapsedFolders = ({})
         sidebar.searchQuery = ""
@@ -122,6 +172,9 @@ TestCase {
         compare(list.enabled, true)
         list.contentY = 0
         mouseWheel(list, 80, 100, 0, -120)
+        // qmltestrunner 在不同测试窗口焦点下可能丢弃合成滚轮，使用同等方向的 Flickable 手势兜底。
+        if (list.contentY === 0)
+            list.flick(0, -240)
         tryVerify(function() { return list.contentY > 0 })
     }
 
@@ -175,6 +228,24 @@ TestCase {
         compare(files.visible, false)
     }
 
+    /** 全局总量、周期切换和自定义范围入口使用 SessionModel 数据。 */
+    function test_globalTokenUsageControls() {
+        page.rightSidebarVisible = true
+        const panel = findChild(page, "contextPanel")
+        compare(findChild(panel, "globalTokenTotal").text, "12,345")
+        const dayButton = findChild(panel, "usagePeriod_day")
+        tryVerify(function() { return dayButton.visible && dayButton.width > 0 && dayButton.height > 0 })
+        mouseClick(dayButton, dayButton.width / 2, dayButton.height / 2)
+        tryVerify(function() { return sessions.tokenUsageView.period === "day" })
+        const previousButton = findChild(panel, "usagePreviousPeriod")
+        mouseClick(previousButton, previousButton.width / 2, previousButton.height / 2)
+        compare(sessions.shiftedBy, -1)
+        const customButton = findChild(panel, "usagePeriod_custom")
+        verify(customButton.visible)
+        verify(customButton.enabled)
+        verify(findChild(panel, "customUsageRangeDialog") !== null)
+    }
+
     /** 压缩后的 null 不能显示成零用量；上下文与累计 token 不混淆。 */
     function test_contextUsage() {
         var panel = findChild(page, "contextPanel")
@@ -186,5 +257,23 @@ TestCase {
         compare(panel.contextUsage.tokens, 60000)
         agent.sessionStats = { contextUsage: { tokens: null, contextWindow: 200000, percent: null } }
         compare(panel.contextKnown, false)
+    }
+
+    /** 自定义日期弹窗把起止日期提交给统计模型并进入 custom 周期。 */
+    function test_z_customTokenUsageRange() {
+        page.rightSidebarVisible = true
+        const panel = findChild(page, "contextPanel")
+        const customButton = findChild(panel, "usagePeriod_custom")
+        tryVerify(function() { return customButton.visible && customButton.width > 0 })
+        mouseClick(customButton, customButton.width / 2, customButton.height / 2)
+        const dialog = findChild(panel, "customUsageRangeDialog")
+        tryCompare(dialog, "visible", true)
+        findChild(panel, "customUsageFrom").text = "2026-09-02"
+        findChild(panel, "customUsageTo").text = "2026-09-18"
+        panel.applyCustomRange()
+        tryCompare(dialog, "visible", false)
+        compare(sessions.tokenUsageView.period, "custom")
+        compare(sessions.tokenUsageView.from, "2026-09-02")
+        compare(sessions.tokenUsageView.to, "2026-09-18")
     }
 }

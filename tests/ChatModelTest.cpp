@@ -2,6 +2,7 @@
 #include "config/AppSettings.h"
 #include "session/SessionModel.h"
 
+#include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -231,6 +232,68 @@ private slots:
         QVERIFY(completed.wait());
         QCOMPARE(model.data(model.index(0), SessionModel::PathRole).toString(), dir.path() + "/b/1.jsonl");
     }
+
+    /** 全局 Token 按时间范围聚合，追加扫描不能重复累计旧 usage。 */
+    void sessionTokenUsageAggregatesIncrementally()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QFile first(dir.filePath(QStringLiteral("first.jsonl")));
+        QVERIFY(first.open(QIODevice::WriteOnly | QIODevice::Text));
+        first.write("{\"type\":\"session\",\"id\":\"session-1\",\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"cwd\":\"E:/Project\"}\n");
+        first.write("{\"type\":\"message\",\"id\":\"assistant-1\",\"timestamp\":\"2026-01-05T01:00:00.000Z\",\"message\":{\"role\":\"assistant\",\"usage\":{\"input\":100,\"output\":20,\"cacheRead\":30,\"cacheWrite\":0,\"cost\":{\"total\":0.10}}}}\n");
+        first.write("{\"type\":\"message\",\"id\":\"tool-1\",\"timestamp\":\"2026-01-06T02:00:00.000Z\",\"message\":{\"role\":\"toolResult\",\"usage\":{\"input\":5,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0,\"cost\":{\"total\":0.02}}}}\n");
+        first.write("{\"type\":\"compaction\",\"id\":\"compact-1\",\"timestamp\":\"2026-01-06T03:00:00.000Z\",\"usage\":{\"input\":50,\"output\":10,\"cacheRead\":20,\"cacheWrite\":0,\"cost\":{\"total\":0.08}}}\n");
+        first.close();
+
+        QFile second(dir.filePath(QStringLiteral("second.jsonl")));
+        QVERIFY(second.open(QIODevice::WriteOnly | QIODevice::Text));
+        second.write("{\"type\":\"session\",\"id\":\"session-2\",\"timestamp\":\"2026-01-20T00:00:00.000Z\",\"cwd\":\"E:/Project\"}\n");
+        second.write("{\"type\":\"message\",\"id\":\"assistant-2\",\"timestamp\":\"2026-01-20T04:00:00.000Z\",\"message\":{\"role\":\"assistant\",\"usage\":{\"input\":700,\"output\":200,\"cacheRead\":100,\"cacheWrite\":0,\"cost\":{\"total\":0.50}}}}\n");
+        second.close();
+
+        SessionModel model;
+        model.setSessionRoot(dir.path());
+        QSignalSpy completed(&model, &SessionModel::refreshCompleted);
+        model.refresh();
+        QVERIFY(completed.wait());
+        QVERIFY(model.setCustomTokenUsageRange(QStringLiteral("2026-01-01"), QStringLiteral("2026-01-07")));
+
+        QVariantMap view = model.tokenUsageView();
+        QVariantMap tokens = view.value(QStringLiteral("tokens")).toMap();
+        QCOMPARE(tokens.value(QStringLiteral("input")).toLongLong(), 155);
+        QCOMPARE(tokens.value(QStringLiteral("output")).toLongLong(), 30);
+        QCOMPARE(tokens.value(QStringLiteral("cacheRead")).toLongLong(), 50);
+        QCOMPARE(tokens.value(QStringLiteral("total")).toLongLong(), 235);
+        QCOMPARE(view.value(QStringLiteral("sessionCount")).toInt(), 1);
+        QCOMPARE(view.value(QStringLiteral("allSessionCount")).toInt(), 2);
+        QCOMPARE(view.value(QStringLiteral("eventCount")).toInt(), 3);
+        QCOMPARE(view.value(QStringLiteral("points")).toList().size(), 7);
+        QVERIFY(qFuzzyCompare(view.value(QStringLiteral("cost")).toDouble() + 1.0, 1.20));
+
+        model.setTokenUsagePeriod(QStringLiteral("total"));
+        view = model.tokenUsageView();
+        tokens = view.value(QStringLiteral("tokens")).toMap();
+        QCOMPARE(tokens.value(QStringLiteral("total")).toLongLong(), 1235);
+        QCOMPARE(view.value(QStringLiteral("sessionCount")).toInt(), 2);
+        QCOMPARE(view.value(QStringLiteral("eventCount")).toInt(), 4);
+
+        QVERIFY(first.open(QIODevice::Append | QIODevice::Text));
+        first.write("{\"type\":\"message\",\"id\":\"assistant-3\",\"timestamp\":\"2026-01-06T05:00:00.000Z\",\"message\":{\"role\":\"assistant\",\"usage\":{\"input\":10,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0,\"cost\":{\"total\":0.01}}}}\n");
+        first.close();
+        model.refresh();
+        QVERIFY(completed.wait());
+        QVERIFY(model.setCustomTokenUsageRange(QStringLiteral("2026-01-01"), QStringLiteral("2026-01-07")));
+        view = model.tokenUsageView();
+        tokens = view.value(QStringLiteral("tokens")).toMap();
+        QCOMPARE(tokens.value(QStringLiteral("total")).toLongLong(), 245);
+        QCOMPARE(view.value(QStringLiteral("eventCount")).toInt(), 4);
+        QVERIFY(!model.setCustomTokenUsageRange(QStringLiteral("2026-01-08"), QStringLiteral("2026-01-01")));
+        QVERIFY(!model.tokenUsageView().value(QStringLiteral("error")).toString().isEmpty());
+    }
+
+    /** 不同 Profile 的 Token 统计可切换，活动 Session 列表保持不变。 */
+    void tokenUsageSwitchesProfileWithoutChangingSessions();
 };
 
 /**
@@ -311,6 +374,49 @@ void ChatModelTest::historyMessagesRestoreToolCard()
     QCOMPARE(model.data(model.index(2), ChatModel::EntryTypeRole).toString(), QStringLiteral("tool"));
     QCOMPARE(model.data(model.index(2), ChatModel::ToolOutputRole).toString(), QStringLiteral("file data"));
     QCOMPARE(model.data(model.index(2), ChatModel::StateRole).toString(), QStringLiteral("completed"));
+}
+
+/**
+ * 不同 Profile 的 Token 统计可切换，活动 Session 列表保持不变。
+ */
+void ChatModelTest::tokenUsageSwitchesProfileWithoutChangingSessions()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const QString profileA = root.filePath(QStringLiteral("profiles/A"));
+    const QString profileB = root.filePath(QStringLiteral("profiles/B"));
+    QVERIFY(QDir().mkpath(QDir(profileA).filePath(QStringLiteral("sessions"))));
+    QVERIFY(QDir().mkpath(QDir(profileB).filePath(QStringLiteral("sessions"))));
+
+    QFile first(QDir(profileA).filePath(QStringLiteral("sessions/a.jsonl")));
+    QVERIFY(first.open(QIODevice::WriteOnly | QIODevice::Text));
+    first.write("{\"type\":\"session\",\"id\":\"a\",\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"cwd\":\"E:/A\"}\n");
+    first.write("{\"type\":\"message\",\"timestamp\":\"2026-01-05T01:00:00.000Z\",\"message\":{\"role\":\"assistant\",\"usage\":{\"input\":10,\"output\":2}}}\n");
+    first.close();
+
+    QFile second(QDir(profileB).filePath(QStringLiteral("sessions/b.jsonl")));
+    QVERIFY(second.open(QIODevice::WriteOnly | QIODevice::Text));
+    second.write("{\"type\":\"session\",\"id\":\"b\",\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"cwd\":\"E:/B\"}\n");
+    second.write("{\"type\":\"message\",\"timestamp\":\"2026-01-05T01:00:00.000Z\",\"message\":{\"role\":\"assistant\",\"usage\":{\"input\":90,\"output\":8}}}\n");
+    second.close();
+
+    SessionModel model;
+    model.setSessionRoot(QDir(profileA).filePath(QStringLiteral("sessions")));
+    model.setTokenUsageProfiles({profileA, profileB});
+    QVERIFY(model.setTokenUsageProfile(profileA));
+    QSignalSpy completed(&model, &SessionModel::refreshCompleted);
+    model.refresh();
+    QVERIFY(completed.wait(3000));
+    QVERIFY(model.setCustomTokenUsageRange(QStringLiteral("2026-01-01"), QStringLiteral("2026-01-07")));
+    QCOMPARE(model.tokenUsageView().value(QStringLiteral("tokens")).toMap()
+                 .value(QStringLiteral("total")).toLongLong(), 12);
+    QCOMPARE(model.rowCount(), 1);
+
+    QVERIFY(model.setTokenUsageProfile(profileB));
+    QTRY_COMPARE_WITH_TIMEOUT(model.tokenUsageView().value(QStringLiteral("tokens")).toMap()
+                                  .value(QStringLiteral("total")).toLongLong(), 98, 3000);
+    QCOMPARE(model.tokenUsageProfile(), QDir::cleanPath(profileB));
+    QCOMPARE(model.rowCount(), 1);
 }
 
 /**
